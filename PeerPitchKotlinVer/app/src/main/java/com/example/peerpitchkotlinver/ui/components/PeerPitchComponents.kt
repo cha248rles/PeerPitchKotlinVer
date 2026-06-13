@@ -6,11 +6,13 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -40,6 +42,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.peerpitchkotlinver.ui.theme.PitchBlack
 import com.example.peerpitchkotlinver.ui.theme.PitchBlue
+import com.example.peerpitchkotlinver.ui.theme.PitchGold
 
 @Composable
 fun PeerPitchLogo(modifier: Modifier = Modifier) {
@@ -254,5 +257,106 @@ fun LoginLinkRow(prefix: String, link: String, onLinkClick: () -> Unit, modifier
             textDecoration = TextDecoration.Underline,
             modifier = Modifier.clickable(onClick = onLinkClick)
         )
+    }
+}
+
+/**
+ * Circular overall-score badge with a progress ring drawn around the number.
+ * [score] is expected on a 0..100 scale.
+ */
+@Composable
+fun ScoreBadge(score: Int, modifier: Modifier = Modifier, label: String = "Overall Score") {
+    Column(modifier = modifier, horizontalAlignment = Alignment.CenterHorizontally) {
+        Box(modifier = Modifier.size(140.dp), contentAlignment = Alignment.Center) {
+            val fraction = (score.coerceIn(0, 100)) / 100f
+            Canvas(modifier = Modifier.fillMaxSize()) {
+                val stroke = size.minDimension * 0.09f
+                val inset = stroke / 2f
+                val arcSize = Size(size.width - stroke, size.height - stroke)
+                drawArc(
+                    color = Color.White.copy(alpha = 0.35f),
+                    startAngle = 0f,
+                    sweepAngle = 360f,
+                    useCenter = false,
+                    topLeft = Offset(inset, inset),
+                    size = arcSize,
+                    style = Stroke(width = stroke, cap = StrokeCap.Round)
+                )
+                drawArc(
+                    color = Color.White,
+                    startAngle = -90f,
+                    sweepAngle = 360f * fraction,
+                    useCenter = false,
+                    topLeft = Offset(inset, inset),
+                    size = arcSize,
+                    style = Stroke(width = stroke, cap = StrokeCap.Round)
+                )
+            }
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text("$score", color = Color.White, fontSize = 44.sp, fontWeight = FontWeight.Bold)
+                Text("/ 100", color = Color.White, fontSize = 12.sp)
+            }
+        }
+        Spacer(modifier = Modifier.size(10.dp))
+        Text(label, color = Color.White, fontSize = 14.sp, fontFamily = FontFamily.Serif)
+    }
+}
+
+/**
+ * Compact white tile showing a single metric: a bold [value] under a [title],
+ * with an optional [detail] caption. Designed to sit in a Row of equal-weight tiles.
+ */
+@Composable
+fun MetricCard(
+    title: String,
+    value: String,
+    modifier: Modifier = Modifier,
+    detail: String? = null,
+    valueColor: Color = PitchBlue
+) {
+    Column(
+        modifier = modifier
+            .background(Color.White, RoundedCornerShape(16.dp))
+            .padding(horizontal = 12.dp, vertical = 16.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(title, color = Color(0xFF6B6B6B), fontSize = 12.sp, textAlign = TextAlign.Center)
+        Spacer(modifier = Modifier.size(6.dp))
+        Text(value, color = valueColor, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+        if (detail != null) {
+            Spacer(modifier = Modifier.size(4.dp))
+            Text(detail, color = Color(0xFF9E9E9E), fontSize = 11.sp, textAlign = TextAlign.Center)
+        }
+    }
+}
+
+/**
+ * Generic white card with a [title] header followed by arbitrary [content].
+ * Used for the transcription and suggestions sections.
+ */
+@Composable
+fun SectionCard(
+    title: String,
+    modifier: Modifier = Modifier,
+    content: @Composable ColumnScope.() -> Unit
+) {
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .background(Color.White, RoundedCornerShape(16.dp))
+            .padding(16.dp)
+    ) {
+        Text(title, color = PitchBlack, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, fontFamily = FontFamily.Serif)
+        Spacer(modifier = Modifier.height(10.dp))
+        content()
+    }
+}
+
+/** A single "•"-prefixed line, used for lists of suggestions inside a [SectionCard]. */
+@Composable
+fun BulletLine(text: String, modifier: Modifier = Modifier) {
+    Row(modifier = modifier.fillMaxWidth().padding(vertical = 3.dp)) {
+        Text("•  ", color = PitchGold, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+        Text(text, color = Color(0xFF333333), fontSize = 13.sp)
     }
 }

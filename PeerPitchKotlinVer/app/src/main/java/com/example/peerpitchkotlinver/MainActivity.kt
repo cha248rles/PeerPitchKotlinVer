@@ -10,6 +10,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.example.peerpitchkotlinver.ui.screens.ActiveVideoFeedScreen
 import com.example.peerpitchkotlinver.ui.screens.LoginScreen
+import com.example.peerpitchkotlinver.ui.screens.ResultsScreen
 import com.example.peerpitchkotlinver.ui.screens.SignUpScreen
 import com.example.peerpitchkotlinver.ui.screens.StartVideoFeedScreen
 import com.example.peerpitchkotlinver.ui.screens.WelcomeScreen
@@ -21,6 +22,7 @@ object Routes {
     const val LOGIN = "login"
     const val START_FEED = "start_feed"
     const val ACTIVE_FEED = "active_feed"
+    const val RESULTS = "results"
 }
 
 class MainActivity : ComponentActivity() {
@@ -59,7 +61,13 @@ fun PeerPitchApp() {
             StartVideoFeedScreen(onStartRecording = { navController.navigate(Routes.ACTIVE_FEED) })
         }
         composable(Routes.ACTIVE_FEED) {
-            ActiveVideoFeedScreen()
+            ActiveVideoFeedScreen(onEnd = { navController.navigate(Routes.RESULTS) })
+        }
+        composable(Routes.RESULTS) {
+            ResultsScreen(
+                onBack = { navController.popBackStack() },
+                onDone = { navController.popBackStack(Routes.START_FEED, inclusive = false) }
+            )
         }
     }
 }
