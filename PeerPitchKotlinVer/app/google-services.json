@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "583019092219",
+    "project_id": "peerpitch-d704d",
+    "storage_bucket": "peerpitch-d704d.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:583019092219:android:0153d8e1af5efa66d3785e",
+        "android_client_info": {
+          "package_name": "com.example.peerpitchkotlinver"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCpZI_q4bYI0dx58nO3T3KE9315I-n9wr8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

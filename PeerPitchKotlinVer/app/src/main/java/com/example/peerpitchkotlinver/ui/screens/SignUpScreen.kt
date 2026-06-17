@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -16,8 +17,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.example.peerpitchkotlinver.auth.AuthRepository
 import com.example.peerpitchkotlinver.ui.components.LoginLinkRow
 import com.example.peerpitchkotlinver.ui.components.NextButton
 import com.example.peerpitchkotlinver.ui.components.PeerPitchLogo
@@ -32,8 +37,10 @@ fun SignUpScreen(
     onLoginInstead: () -> Unit,
     onNext: () -> Unit
 ) {
-    var username by remember { mutableStateOf("") }
+    var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
+    var error by remember { mutableStateOf<String?>(null) }
+    var loading by remember { mutableStateOf(false) }
 
     Column(
         modifier = Modifier
@@ -59,9 +66,9 @@ fun SignUpScreen(
             )
             Spacer(modifier = Modifier.height(32.dp))
             PitchTextField(
-                value = username,
-                onValueChange = { username = it },
-                placeholder = "Username"
+                value = email,
+                onValueChange = { email = it },
+                placeholder = "Email"
             )
             Spacer(modifier = Modifier.height(16.dp))
             PitchTextField(
@@ -70,6 +77,16 @@ fun SignUpScreen(
                 placeholder = "Password",
                 isPassword = true
             )
+            if (error != null) {
+                Spacer(modifier = Modifier.height(12.dp))
+                Text(
+                    text = error!!,
+                    color = Color(0xFFB00020),
+                    fontSize = 13.sp,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
             Spacer(modifier = Modifier.height(12.dp))
             LoginLinkRow(
                 prefix = "Have an Account? ",
@@ -77,7 +94,29 @@ fun SignUpScreen(
                 onLinkClick = onLoginInstead
             )
             Spacer(modifier = Modifier.weight(1f))
-            NextButton(onClick = onNext, modifier = Modifier.align(Alignment.End))
+            NextButton(
+                onClick = {
+                    if (email.isBlank() || password.isBlank()) {
+                        error = "Please enter an email and password."
+                        return@NextButton
+                    }
+                    if (password.length < 6) {
+                        error = "Password must be at least 6 characters."
+                        return@NextButton
+                    }
+                    error = null
+                    loading = true
+                    AuthRepository.signUp(email, password) { result ->
+                        loading = false
+                        result.fold(
+                            onSuccess = { onNext() },
+                            onFailure = { error = it.message ?: "Sign-up failed." }
+                        )
+                    }
+                },
+                enabled = !loading,
+                modifier = Modifier.align(Alignment.End)
+            )
             Spacer(modifier = Modifier.height(24.dp))
         }
     }

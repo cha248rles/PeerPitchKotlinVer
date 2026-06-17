@@ -24,6 +24,10 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.CornerRadius
@@ -132,13 +136,26 @@ fun PitchTextField(
     modifier: Modifier = Modifier,
     isPassword: Boolean = false
 ) {
+    var passwordVisible by remember { mutableStateOf(false) }
+    val masked = isPassword && !passwordVisible
     TextField(
         value = value,
         onValueChange = onValueChange,
         placeholder = { Text(placeholder, color = Color(0xFF9E9E9E), fontSize = 14.sp) },
         singleLine = true,
         shape = RoundedCornerShape(50),
-        visualTransformation = if (isPassword) PasswordVisualTransformation() else VisualTransformation.None,
+        visualTransformation = if (masked) PasswordVisualTransformation() else VisualTransformation.None,
+        trailingIcon = if (isPassword) {
+            {
+                EyeIcon(
+                    visible = passwordVisible,
+                    onClick = { passwordVisible = !passwordVisible },
+                    modifier = Modifier.padding(end = 8.dp)
+                )
+            }
+        } else {
+            null
+        },
         colors = TextFieldDefaults.colors(
             focusedContainerColor = Color.White,
             unfocusedContainerColor = Color.White,
@@ -150,6 +167,39 @@ fun PitchTextField(
         ),
         modifier = modifier.fillMaxWidth()
     )
+}
+
+/**
+ * Eye toggle for password fields. Shows an open eye when the password is [visible]
+ * and an eye with a slash through it when it is hidden.
+ */
+@Composable
+fun EyeIcon(
+    visible: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    tint: Color = Color(0xFF7A7A7A)
+) {
+    Canvas(
+        modifier = modifier
+            .size(24.dp)
+            .clickable(onClick = onClick)
+            .padding(2.dp)
+    ) {
+        val w = size.width
+        val h = size.height
+        val strokeWidth = w * 0.08f
+        drawOval(
+            color = tint,
+            topLeft = Offset(w * 0.08f, h * 0.3f),
+            size = Size(w * 0.84f, h * 0.4f),
+            style = Stroke(width = strokeWidth)
+        )
+        drawCircle(tint, radius = w * 0.12f, center = Offset(w * 0.5f, h * 0.5f))
+        if (!visible) {
+            drawLine(tint, Offset(w * 0.15f, h * 0.16f), Offset(w * 0.85f, h * 0.84f), strokeWidth, StrokeCap.Round)
+        }
+    }
 }
 
 @Composable
@@ -176,10 +226,11 @@ fun OutlinedPillButton(
 }
 
 @Composable
-fun NextButton(onClick: () -> Unit, modifier: Modifier = Modifier) {
+fun NextButton(onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true) {
     Button(
         onClick = onClick,
         modifier = modifier,
+        enabled = enabled,
         shape = RoundedCornerShape(50),
         colors = ButtonDefaults.buttonColors(
             containerColor = PitchBlack,
