@@ -1,8 +1,10 @@
 package com.example.peerpitchkotlinver.ui.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -23,12 +25,13 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.peerpitchkotlinver.ui.components.OutlinedHomeButton
 import com.example.peerpitchkotlinver.ui.components.OutlinedPillButton
 import com.example.peerpitchkotlinver.ui.theme.PitchFeedDark
 import com.example.peerpitchkotlinver.ui.theme.PitchGold
 
 @Composable
-fun ActiveVideoFeedScreen(onEnd: () -> Unit = {}) {
+fun ActiveVideoFeedScreen(onEnd: () -> Unit = {}, onHome: () -> Unit = {}) {
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -93,11 +96,13 @@ fun ActiveVideoFeedScreen(onEnd: () -> Unit = {}) {
             }
         }
         Spacer(modifier = Modifier.height(16.dp))
-        OutlinedPillButton(
-            text = "End",
-            onClick = onEnd,
-            modifier = Modifier.align(Alignment.CenterHorizontally)
-        )
+        Row(
+            modifier = Modifier.align(Alignment.CenterHorizontally),
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            OutlinedHomeButton(text = "Home", onClick = onHome)
+            OutlinedPillButton(text = "End", onClick = onEnd)
+        }
         Spacer(modifier = Modifier.height(16.dp))
     }
 }

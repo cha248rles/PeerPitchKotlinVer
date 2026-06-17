@@ -65,7 +65,7 @@ fun ResultsScreen(
 ) {
     Scaffold(
         containerColor = PitchGold,
-        topBar = { PitchTopBar(title = "Your Results", onBack = onBack) }
+        topBar = { PitchTopBar(title = "Your Results", onBack = onBack, useHomeIcon = true) }
     ) { innerPadding ->
         Column(
             modifier = Modifier

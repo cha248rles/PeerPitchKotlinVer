@@ -40,6 +40,14 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun PeerPitchApp() {
     val navController = rememberNavController()
+    // App opens on Welcome and goes through login first. After that, the
+    // "Start Video Feed" screen acts as the home hub the home buttons return to.
+    val goHome: () -> Unit = {
+        navController.navigate(Routes.START_FEED) {
+            popUpTo(Routes.START_FEED) { inclusive = false }
+            launchSingleTop = true
+        }
+    }
     NavHost(navController = navController, startDestination = Routes.WELCOME) {
         composable(Routes.WELCOME) {
             WelcomeScreen(onGetStarted = { navController.navigate(Routes.SIGN_UP) })
@@ -61,12 +69,15 @@ fun PeerPitchApp() {
             StartVideoFeedScreen(onStartRecording = { navController.navigate(Routes.ACTIVE_FEED) })
         }
         composable(Routes.ACTIVE_FEED) {
-            ActiveVideoFeedScreen(onEnd = { navController.navigate(Routes.RESULTS) })
+            ActiveVideoFeedScreen(
+                onEnd = { navController.navigate(Routes.RESULTS) },
+                onHome = goHome
+            )
         }
         composable(Routes.RESULTS) {
             ResultsScreen(
-                onBack = { navController.popBackStack() },
-                onDone = { navController.popBackStack(Routes.START_FEED, inclusive = false) }
+                onBack = goHome,
+                onDone = goHome
             )
         }
     }

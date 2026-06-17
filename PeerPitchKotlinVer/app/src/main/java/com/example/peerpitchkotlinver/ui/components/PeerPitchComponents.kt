@@ -208,6 +208,61 @@ fun BackArrowIcon(onClick: () -> Unit, modifier: Modifier = Modifier, tint: Colo
     }
 }
 
+/** Pure house glyph (no interaction); reused by [HomeIcon] and [OutlinedHomeButton]. */
+@Composable
+fun HouseGlyph(modifier: Modifier = Modifier, tint: Color = Color.White) {
+    Canvas(modifier = modifier) {
+        val w = size.width
+        val h = size.height
+        val strokeWidth = w * 0.09f
+        // roof
+        drawLine(tint, Offset(w * 0.5f, h * 0.12f), Offset(w * 0.1f, h * 0.5f), strokeWidth, StrokeCap.Round)
+        drawLine(tint, Offset(w * 0.5f, h * 0.12f), Offset(w * 0.9f, h * 0.5f), strokeWidth, StrokeCap.Round)
+        // walls
+        drawLine(tint, Offset(w * 0.2f, h * 0.46f), Offset(w * 0.2f, h * 0.85f), strokeWidth, StrokeCap.Round)
+        drawLine(tint, Offset(w * 0.8f, h * 0.46f), Offset(w * 0.8f, h * 0.85f), strokeWidth, StrokeCap.Round)
+        // floor
+        drawLine(tint, Offset(w * 0.2f, h * 0.85f), Offset(w * 0.8f, h * 0.85f), strokeWidth, StrokeCap.Round)
+        // door
+        drawLine(tint, Offset(w * 0.5f, h * 0.85f), Offset(w * 0.5f, h * 0.62f), strokeWidth, StrokeCap.Round)
+    }
+}
+
+@Composable
+fun HomeIcon(onClick: () -> Unit, modifier: Modifier = Modifier, tint: Color = Color.White) {
+    HouseGlyph(
+        tint = tint,
+        modifier = modifier
+            .size(28.dp)
+            .clickable(onClick = onClick)
+            .padding(2.dp)
+    )
+}
+
+/** Outlined pill button with a house glyph + "Home" label, matching [OutlinedPillButton] styling. */
+@Composable
+fun OutlinedHomeButton(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    text: String = "Home"
+) {
+    OutlinedButton(
+        onClick = onClick,
+        modifier = modifier,
+        shape = RoundedCornerShape(50),
+        border = BorderStroke(2.dp, PitchBlue),
+        colors = ButtonDefaults.outlinedButtonColors(
+            containerColor = Color.White,
+            contentColor = PitchBlack
+        ),
+        contentPadding = PaddingValues(horizontal = 24.dp, vertical = 12.dp)
+    ) {
+        HouseGlyph(modifier = Modifier.size(18.dp), tint = PitchBlue)
+        Spacer(modifier = Modifier.width(8.dp))
+        Text(text, fontSize = 16.sp)
+    }
+}
+
 @Composable
 fun MenuIcon(modifier: Modifier = Modifier, tint: Color = Color.White, onClick: () -> Unit = {}) {
     Canvas(
@@ -226,13 +281,22 @@ fun MenuIcon(modifier: Modifier = Modifier, tint: Color = Color.White, onClick: 
 }
 
 @Composable
-fun PitchTopBar(title: String, onBack: () -> Unit, modifier: Modifier = Modifier) {
+fun PitchTopBar(
+    title: String,
+    onBack: () -> Unit,
+    modifier: Modifier = Modifier,
+    useHomeIcon: Boolean = false
+) {
     Box(
         modifier = modifier
             .fillMaxWidth()
             .padding(horizontal = 20.dp, vertical = 12.dp)
     ) {
-        BackArrowIcon(onClick = onBack, modifier = Modifier.align(Alignment.CenterStart))
+        if (useHomeIcon) {
+            HomeIcon(onClick = onBack, modifier = Modifier.align(Alignment.CenterStart))
+        } else {
+            BackArrowIcon(onClick = onBack, modifier = Modifier.align(Alignment.CenterStart))
+        }
         Text(
             text = title,
             modifier = Modifier.align(Alignment.Center),
