@@ -45,6 +45,13 @@ class SessionState(private val store: SessionStore? = null) {
         private set
     var wordsPerMinute by mutableStateOf(0)
         private set
+    val elapsedMs: Long
+        get() = if (startMs == 0L) 0L else
+            SystemClock.elapsedRealtime() - startMs
+
+    private val samples = mutableListOf<TimedSample>()
+
+    data class TimedSample(val tSec: Int, val eyeContact: EyeContact, val wpm: Int)
 
     private var startMs = 0L
     private val bursts = ArrayDeque<WordBurst>()
@@ -58,7 +65,14 @@ class SessionState(private val store: SessionStore? = null) {
         wordsPerMinute = 0
         bursts.clear()
         store?.reset()
+        samples.clear()
     }
+    fun sample() {
+        recompute() // refresh wpm first
+        samples.add(TimedSample((elapsedMs / 1000).toInt(), eyeContactState, wordsPerMinute))
+    }
+
+    fun samplesSnapshot(): List<TimedSample> = samples.toList()
 
     /** Append a finalized speech segment and refresh derived metrics. */
     fun addFinal(text: String) {
