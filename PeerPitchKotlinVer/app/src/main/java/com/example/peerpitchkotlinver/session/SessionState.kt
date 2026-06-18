@@ -22,10 +22,21 @@ data class MetricsSnapshot(
  * Filler words are a running session total; speaking pace ([wordsPerMinute]) is computed
  * over a rolling [WINDOW_MS] window so it tracks current speech and eases back toward zero
  * during silence (call [tick] periodically to refresh it without new speech).
+ *
+ * If a [store] is supplied, every meaningful change is mirrored to a JSON file that
+ * refreshes each session (see [SessionStore]).
  */
-class SessionState {
+class SessionState(private val store: SessionStore? = null) {
 
-    var eyeContact by mutableStateOf(EyeContact.NONE)
+    private var eyeContactState by mutableStateOf(EyeContact.NONE)
+    var eyeContact: EyeContact
+        get() = eyeContactState
+        set(value) {
+            if (value != eyeContactState) {
+                eyeContactState = value
+                persist()
+            }
+        }
     var transcript by mutableStateOf("")
         private set
     var partial by mutableStateOf("")
@@ -40,11 +51,13 @@ class SessionState {
 
     fun begin() {
         startMs = SystemClock.elapsedRealtime()
+        eyeContactState = EyeContact.NONE
         transcript = ""
         partial = ""
         fillerWordCount = 0
         wordsPerMinute = 0
         bursts.clear()
+        store?.reset()
     }
 
     /** Append a finalized speech segment and refresh derived metrics. */
@@ -64,10 +77,8 @@ class SessionState {
     /** Recompute time-based metrics (pace) without new speech; safe to call on a timer. */
     fun tick() = recompute()
 
-    fun snapshot(): MetricsSnapshot {
-        recompute()
-        return MetricsSnapshot(eyeContact, fillerWordCount, wordsPerMinute, transcript)
-    }
+    fun snapshot(): MetricsSnapshot =
+        MetricsSnapshot(eyeContactState, fillerWordCount, wordsPerMinute, transcript)
 
     private fun recompute() {
         val now = SystemClock.elapsedRealtime()
@@ -78,6 +89,11 @@ class SessionState {
         val minutes = (windowMs / 60_000.0).coerceAtLeast(MIN_MINUTES)
         wordsPerMinute = (wordsInWindow / minutes).toInt()
         fillerWordCount = countFillers(transcript)
+        persist()
+    }
+
+    private fun persist() {
+        store?.save(snapshot())
     }
 
     private fun countFillers(text: String): Int {

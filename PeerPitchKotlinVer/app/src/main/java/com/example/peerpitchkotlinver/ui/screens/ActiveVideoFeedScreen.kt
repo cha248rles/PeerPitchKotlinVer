@@ -43,6 +43,7 @@ import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import com.example.peerpitchkotlinver.camera.CameraPreview
 import com.example.peerpitchkotlinver.session.SessionState
+import com.example.peerpitchkotlinver.session.SessionStore
 import com.example.peerpitchkotlinver.speech.SpeechController
 import com.example.peerpitchkotlinver.ui.components.OutlinedHomeButton
 import com.example.peerpitchkotlinver.ui.components.OutlinedPillButton
@@ -59,7 +60,7 @@ private const val SNAPSHOT_INTERVAL_MS = 10_000L
 @Composable
 fun ActiveVideoFeedScreen(onEnd: () -> Unit = {}, onHome: () -> Unit = {}) {
     val context = LocalContext.current
-    val session = remember { SessionState() }
+    val session = remember { SessionState(SessionStore(context)) }
 
     var granted by remember {
         mutableStateOf(
@@ -98,6 +99,7 @@ fun ActiveVideoFeedScreen(onEnd: () -> Unit = {}, onHome: () -> Unit = {}) {
         if (!granted) return@LaunchedEffect
         while (true) {
             delay(SNAPSHOT_INTERVAL_MS)
+            session.tick() // refresh pace + flush the latest metrics to the session file
             @Suppress("UNUSED_VARIABLE")
             val snapshot = session.snapshot()
             // TODO(Gemini): send `snapshot` to Gemini and display the returned feedback.
