@@ -24,6 +24,7 @@ class SpeechController(
 
     private var recognizer: SpeechRecognizer? = null
     private var listening = false
+    private val handler = android.os.Handler(android.os.Looper.getMainLooper())
 
     /** Returns false if no recognition service is available (e.g. a bare emulator). */
     fun start(): Boolean {
@@ -42,6 +43,7 @@ class SpeechController(
 
     fun stop() {
         listening = false
+        handler.removeCallbacksAndMessages(null)
         recognizer?.destroy()
         recognizer = null
     }
@@ -77,7 +79,7 @@ class SpeechController(
     override fun onError(error: Int) {
         // Common during pauses (ERROR_NO_MATCH / ERROR_SPEECH_TIMEOUT); just keep going.
         Log.d(TAG, "error code=$error (restarting)")
-        if (listening) listen()
+        if (listening) handler.postDelayed({ if (listening) listen() }, 600L)
     }
 
     private fun firstResult(bundle: Bundle?): String? =
