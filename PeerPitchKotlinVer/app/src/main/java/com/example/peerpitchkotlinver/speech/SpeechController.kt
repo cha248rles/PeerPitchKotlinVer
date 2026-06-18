@@ -6,6 +6,7 @@ import android.os.Bundle
 import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
+import android.util.Log
 
 /**
  * Thin wrapper around Android's built-in [SpeechRecognizer] that keeps listening
@@ -26,12 +27,16 @@ class SpeechController(
 
     /** Returns false if no recognition service is available (e.g. a bare emulator). */
     fun start(): Boolean {
-        if (!SpeechRecognizer.isRecognitionAvailable(context)) return false
+        if (!SpeechRecognizer.isRecognitionAvailable(context)) {
+            Log.w(TAG, "no speech recognition service available on this device")
+            return false
+        }
         recognizer = SpeechRecognizer.createSpeechRecognizer(context).apply {
             setRecognitionListener(this@SpeechController)
         }
         listening = true
         listen()
+        Log.d(TAG, "listening started")
         return true
     }
 
@@ -51,21 +56,36 @@ class SpeechController(
     }
 
     override fun onPartialResults(partialResults: Bundle?) {
-        firstResult(partialResults)?.let { if (it.isNotBlank()) onPartial(it) }
+        firstResult(partialResults)?.let {
+            if (it.isNotBlank()) {
+                Log.d(TAG, "partial: $it")
+                onPartial(it)
+            }
+        }
     }
 
     override fun onResults(results: Bundle?) {
-        firstResult(results)?.let { if (it.isNotBlank()) onFinal(it) }
+        firstResult(results)?.let {
+            if (it.isNotBlank()) {
+                Log.d(TAG, "final: $it")
+                onFinal(it)
+            }
+        }
         if (listening) listen() // restart for continuous transcription
     }
 
     override fun onError(error: Int) {
         // Common during pauses (ERROR_NO_MATCH / ERROR_SPEECH_TIMEOUT); just keep going.
+        Log.d(TAG, "error code=$error (restarting)")
         if (listening) listen()
     }
 
     private fun firstResult(bundle: Bundle?): String? =
         bundle?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull()
+
+    private companion object {
+        const val TAG = "PeerPitchSpeech"
+    }
 
     // Unused callbacks.
     override fun onReadyForSpeech(params: Bundle?) {}

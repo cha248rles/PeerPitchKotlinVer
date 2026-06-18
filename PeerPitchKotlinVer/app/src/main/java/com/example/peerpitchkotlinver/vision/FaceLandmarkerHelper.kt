@@ -6,10 +6,12 @@ import android.os.Handler
 import android.os.Looper
 import android.util.Log
 import com.google.mediapipe.framework.image.BitmapImageBuilder
+import com.google.mediapipe.tasks.components.containers.NormalizedLandmark
 import com.google.mediapipe.tasks.core.BaseOptions
 import com.google.mediapipe.tasks.vision.core.RunningMode
 import com.google.mediapipe.tasks.vision.facelandmarker.FaceLandmarker
 import com.google.mediapipe.tasks.vision.facelandmarker.FaceLandmarkerResult
+import kotlin.math.abs
 
 /** Coarse eye-contact state derived from face landmarks. */
 enum class EyeContact { NONE, GOOD, POOR }
@@ -19,6 +21,10 @@ enum class EyeContact { NONE, GOOD, POOR }
  * [detect]; results are interpreted into an [EyeContact] value and delivered on the
  * main thread via the [onResult] callback.
  *
+ * Eye contact combines two signals — how far the head is turned (from the face
+ * landmarks) and where the eyes are looking (from the gaze blendshapes) — then smooths
+ * the result over a short window so it doesn't flicker frame to frame.
+ *
  * The model file `face_landmarker.task` must live in `app/src/main/assets/`.
  */
 class FaceLandmarkerHelper(
@@ -26,6 +32,7 @@ class FaceLandmarkerHelper(
     private val onResult: (EyeContact) -> Unit
 ) {
     private val mainHandler = Handler(Looper.getMainLooper())
+    private val recent = ArrayDeque<EyeContact>()
     private var faceLandmarker: FaceLandmarker? = null
 
     init {
@@ -57,29 +64,69 @@ class FaceLandmarkerHelper(
         faceLandmarker = null
     }
 
-    /**
-     * Uses the gaze blendshapes (how far each eye looks in/out/up/down). When the user
-     * looks at the camera all gaze scores stay low; a high score means they're looking away.
-     */
     private fun interpret(result: FaceLandmarkerResult): EyeContact {
-        val blendshapes = result.faceBlendshapes()
-        if (!blendshapes.isPresent || blendshapes.get().isEmpty()) {
+        val faces = result.faceLandmarks()
+        if (faces.isEmpty() || faces[0].isEmpty()) {
             Log.d(TAG, "no face detected")
-            return EyeContact.NONE
+            return smooth(EyeContact.NONE)
         }
-        val faceShapes = blendshapes.get()[0]
-        val maxGaze = faceShapes
+        val face = faces[0]
+        val yaw = headYaw(face)
+        val maxGaze = maxGazeScore(result)
+
+        val raw = when {
+            abs(yaw) > YAW_THRESHOLD -> EyeContact.POOR   // head turned away
+            maxGaze > GAZE_THRESHOLD -> EyeContact.POOR   // eyes looking away
+            else -> EyeContact.GOOD
+        }
+        val smoothed = smooth(raw)
+        Log.d(TAG, "yaw=%.3f maxGaze=%.2f raw=%s -> %s".format(yaw, maxGaze, raw, smoothed))
+        return smoothed
+    }
+
+    /** Horizontal head turn: 0 ≈ facing camera, magnitude grows as the head rotates. */
+    private fun headYaw(face: List<NormalizedLandmark>): Float {
+        val nose = face[NOSE_TIP]
+        val left = face[LEFT_CHEEK]
+        val right = face[RIGHT_CHEEK]
+        val centerX = (left.x() + right.x()) / 2f
+        val width = abs(right.x() - left.x()).coerceAtLeast(1e-4f)
+        return (nose.x() - centerX) / width
+    }
+
+    /** Largest eye-gaze blendshape score; low when looking straight ahead. */
+    private fun maxGazeScore(result: FaceLandmarkerResult): Float {
+        val blendshapes = result.faceBlendshapes()
+        if (!blendshapes.isPresent || blendshapes.get().isEmpty()) return 0f
+        return blendshapes.get()[0]
             .filter { it.categoryName() in GAZE_SHAPES }
             .maxOfOrNull { it.score() } ?: 0f
-        val state = if (maxGaze < GAZE_THRESHOLD) EyeContact.GOOD else EyeContact.POOR
-        Log.d(TAG, "face found · maxGaze=%.2f · eyeContact=%s".format(maxGaze, state))
-        return state
+    }
+
+    /** Majority vote over the last [SMOOTH_WINDOW] frames; resets when the face is lost. */
+    private fun smooth(raw: EyeContact): EyeContact {
+        if (raw == EyeContact.NONE) {
+            recent.clear()
+            return EyeContact.NONE
+        }
+        recent.addLast(raw)
+        while (recent.size > SMOOTH_WINDOW) recent.removeFirst()
+        val good = recent.count { it == EyeContact.GOOD }
+        return if (good * 2 >= recent.size) EyeContact.GOOD else EyeContact.POOR
     }
 
     companion object {
         private const val TAG = "PeerPitchVision"
         private const val MODEL_PATH = "face_landmarker.task"
         private const val GAZE_THRESHOLD = 0.45f
+        private const val YAW_THRESHOLD = 0.08f
+        private const val SMOOTH_WINDOW = 5
+
+        // Face-mesh landmark indices (478-point model).
+        private const val NOSE_TIP = 1
+        private const val LEFT_CHEEK = 234
+        private const val RIGHT_CHEEK = 454
+
         private val GAZE_SHAPES = setOf(
             "eyeLookInLeft", "eyeLookOutLeft", "eyeLookUpLeft", "eyeLookDownLeft",
             "eyeLookInRight", "eyeLookOutRight", "eyeLookUpRight", "eyeLookDownRight"

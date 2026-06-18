@@ -16,7 +16,10 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -155,17 +158,31 @@ private fun BoxScope.MetricsOverlay(session: SessionState) {
         EyeContact.POOR -> "Look at camera"
         EyeContact.NONE -> "No face detected"
     }
+    val dotColor = when (session.eyeContact) {
+        EyeContact.GOOD -> Color(0xFF4CAF50)
+        EyeContact.POOR -> Color(0xFFE57373)
+        EyeContact.NONE -> Color(0xFF9E9E9E)
+    }
     Column(
         modifier = Modifier
             .align(Alignment.TopStart)
             .padding(12.dp)
     ) {
-        Text(
-            text = "Eye Contact: $eyeLabel",
-            color = PitchGold,
-            fontSize = 16.sp,
-            fontWeight = FontWeight.SemiBold
-        )
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                modifier = Modifier
+                    .size(10.dp)
+                    .clip(CircleShape)
+                    .background(dotColor)
+            )
+            Spacer(modifier = Modifier.width(6.dp))
+            Text(
+                text = "Eye Contact: $eyeLabel",
+                color = PitchGold,
+                fontSize = 16.sp,
+                fontWeight = FontWeight.SemiBold
+            )
+        }
         Spacer(modifier = Modifier.height(4.dp))
         Text("Filler Words: ${session.fillerWordCount}", color = Color.White, fontSize = 12.sp)
         Text("Pace: ${session.wordsPerMinute} WPM", color = Color.White, fontSize = 12.sp)
