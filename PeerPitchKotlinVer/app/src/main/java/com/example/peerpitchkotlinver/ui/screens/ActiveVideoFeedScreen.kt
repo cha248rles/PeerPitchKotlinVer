@@ -1,8 +1,13 @@
 package com.example.peerpitchkotlinver.ui.screens
 
+import android.Manifest
+import android.content.pm.PackageManager
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -15,23 +20,87 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat
+import com.example.peerpitchkotlinver.camera.CameraPreview
+import com.example.peerpitchkotlinver.session.SessionState
+import com.example.peerpitchkotlinver.speech.SpeechController
 import com.example.peerpitchkotlinver.ui.components.OutlinedHomeButton
 import com.example.peerpitchkotlinver.ui.components.OutlinedPillButton
 import com.example.peerpitchkotlinver.ui.theme.PitchFeedDark
 import com.example.peerpitchkotlinver.ui.theme.PitchGold
+import com.example.peerpitchkotlinver.vision.EyeContact
+import kotlinx.coroutines.delay
+
+private val REQUIRED_PERMISSIONS = arrayOf(Manifest.permission.CAMERA, Manifest.permission.RECORD_AUDIO)
+
+/** Interval at which a metrics snapshot is assembled for the LLM. */
+private const val SNAPSHOT_INTERVAL_MS = 10_000L
 
 @Composable
 fun ActiveVideoFeedScreen(onEnd: () -> Unit = {}, onHome: () -> Unit = {}) {
+    val context = LocalContext.current
+    val session = remember { SessionState() }
+
+    var granted by remember {
+        mutableStateOf(
+            REQUIRED_PERMISSIONS.all {
+                ContextCompat.checkSelfPermission(context, it) == PackageManager.PERMISSION_GRANTED
+            }
+        )
+    }
+    val permissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { result ->
+        granted = result.values.all { it }
+    }
+    LaunchedEffect(Unit) {
+        if (!granted) permissionLauncher.launch(REQUIRED_PERMISSIONS)
+    }
+
+    // Start/stop the speech recognizer with the session.
+    DisposableEffect(granted) {
+        var speech: SpeechController? = null
+        if (granted) {
+            session.begin()
+            speech = SpeechController(
+                context = context,
+                onPartial = { session.updatePartial(it) },
+                onFinal = { session.addFinal(it) }
+            )
+            speech.start()
+        }
+        onDispose { speech?.stop() }
+    }
+
+    // Gemini seam: assemble a metrics snapshot every 10s. Sending it to the LLM and
+    // surfacing feedback is intentionally not implemented yet.
+    LaunchedEffect(granted) {
+        if (!granted) return@LaunchedEffect
+        while (true) {
+            delay(SNAPSHOT_INTERVAL_MS)
+            @Suppress("UNUSED_VARIABLE")
+            val snapshot = session.snapshot()
+            // TODO(Gemini): send `snapshot` to Gemini and display the returned feedback.
+        }
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -57,42 +126,14 @@ fun ActiveVideoFeedScreen(onEnd: () -> Unit = {}, onHome: () -> Unit = {}) {
                 .clip(RoundedCornerShape(8.dp))
                 .background(PitchFeedDark)
         ) {
-            // placeholder until CameraX preview is wired in
-            Text(
-                text = "Camera Preview",
-                modifier = Modifier.align(Alignment.Center),
-                color = Color(0xFF5F5F5F),
-                fontSize = 13.sp
-            )
-            Column(
-                modifier = Modifier
-                    .align(Alignment.TopStart)
-                    .padding(12.dp)
-            ) {
-                Text(
-                    text = "Eye Contact: Good",
-                    color = PitchGold,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.SemiBold
+            if (granted) {
+                CameraPreview(
+                    onEyeContact = { session.eyeContact = it },
+                    modifier = Modifier.fillMaxSize()
                 )
-                Spacer(modifier = Modifier.height(4.dp))
-                Text("Filler Words used often:", color = Color.White, fontSize = 12.sp)
-                Text("Uhm and like", color = Color.White, fontSize = 12.sp)
-            }
-            Column(
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .padding(horizontal = 32.dp)
-                    .padding(bottom = 48.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Text("Chat Transcription:", color = Color.White, fontSize = 14.sp)
-                Text(
-                    text = "The main reason why we decided to do this is uhm because we like",
-                    color = Color.White,
-                    fontSize = 14.sp,
-                    textAlign = TextAlign.Center
-                )
+                MetricsOverlay(session)
+            } else {
+                PermissionPrompt(onGrant = { permissionLauncher.launch(REQUIRED_PERMISSIONS) })
             }
         }
         Spacer(modifier = Modifier.height(16.dp))
@@ -104,6 +145,70 @@ fun ActiveVideoFeedScreen(onEnd: () -> Unit = {}, onHome: () -> Unit = {}) {
             OutlinedPillButton(text = "End", onClick = onEnd)
         }
         Spacer(modifier = Modifier.height(16.dp))
+    }
+}
+
+@Composable
+private fun BoxScope.MetricsOverlay(session: SessionState) {
+    val eyeLabel = when (session.eyeContact) {
+        EyeContact.GOOD -> "Good"
+        EyeContact.POOR -> "Look at camera"
+        EyeContact.NONE -> "No face detected"
+    }
+    Column(
+        modifier = Modifier
+            .align(Alignment.TopStart)
+            .padding(12.dp)
+    ) {
+        Text(
+            text = "Eye Contact: $eyeLabel",
+            color = PitchGold,
+            fontSize = 16.sp,
+            fontWeight = FontWeight.SemiBold
+        )
+        Spacer(modifier = Modifier.height(4.dp))
+        Text("Filler Words: ${session.fillerWordCount}", color = Color.White, fontSize = 12.sp)
+        Text("Pace: ${session.wordsPerMinute} WPM", color = Color.White, fontSize = 12.sp)
+    }
+    Column(
+        modifier = Modifier
+            .align(Alignment.BottomCenter)
+            .padding(horizontal = 24.dp)
+            .padding(bottom = 24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text("Chat Transcription:", color = Color.White, fontSize = 14.sp)
+        val live = "${session.transcript} ${session.partial}".trim()
+        Text(
+            text = live.ifBlank { "Listening…" },
+            color = Color.White,
+            fontSize = 14.sp,
+            textAlign = TextAlign.Center
+        )
+    }
+}
+
+@Composable
+private fun BoxScope.PermissionPrompt(onGrant: () -> Unit) {
+    Column(
+        modifier = Modifier
+            .align(Alignment.Center)
+            .padding(24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(
+            text = "Camera and microphone access are needed for the live feed.",
+            color = Color.White,
+            fontSize = 14.sp,
+            textAlign = TextAlign.Center
+        )
+        Spacer(modifier = Modifier.height(16.dp))
+        OutlinedPillButton(
+            text = "Grant Access",
+            onClick = onGrant,
+            containerColor = Color.Transparent,
+            contentColor = Color.White
+        )
     }
 }
 
