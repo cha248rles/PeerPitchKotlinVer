@@ -41,10 +41,13 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
+import kotlinx.coroutines.launch
+import android.util.Log
+import com.example.peerpitchkotlinver.ai.GeminiTranscriber
 import com.example.peerpitchkotlinver.camera.CameraPreview
 import com.example.peerpitchkotlinver.session.SessionState
 import com.example.peerpitchkotlinver.session.SessionStore
-import com.example.peerpitchkotlinver.speech.SpeechController
+import com.example.peerpitchkotlinver.speech.AudioChunkRecorder
 import com.example.peerpitchkotlinver.ui.components.OutlinedHomeButton
 import com.example.peerpitchkotlinver.ui.components.OutlinedPillButton
 import com.example.peerpitchkotlinver.ui.theme.PitchFeedDark
@@ -56,6 +59,9 @@ private val REQUIRED_PERMISSIONS = arrayOf(Manifest.permission.CAMERA, Manifest.
 
 /** Interval at which a metrics snapshot is assembled for the LLM. */
 private const val SNAPSHOT_INTERVAL_MS = 10_000L
+
+/** Length of each audio clip sent to Gemini for transcription. */
+private const val CLIP_MS = 10_000L
 
 @Composable
 fun ActiveVideoFeedScreen(onEnd: () -> Unit = {}, onHome: () -> Unit = {}) {
@@ -78,31 +84,44 @@ fun ActiveVideoFeedScreen(onEnd: () -> Unit = {}, onHome: () -> Unit = {}) {
         if (!granted) permissionLauncher.launch(REQUIRED_PERMISSIONS)
     }
 
-    // Start/stop the speech recognizer with the session.
-    DisposableEffect(granted) {
-        var speech: SpeechController? = null
-        if (granted) {
-            session.begin()
-            speech = SpeechController(
-                context = context,
-                onPartial = { session.updatePartial(it) },
-                onFinal = { session.addFinal(it) }
-            )
-            speech.start()
+    // Transcribe mic audio with Gemini in short clips (Android's on-device recognizer is
+    // unavailable on the emulator). Record a clip, then transcribe it in the background and
+    // append the text to the running transcript while the next clip records.
+    LaunchedEffect(granted) {
+        if (!granted) return@LaunchedEffect
+        session.begin()
+        val recorder = AudioChunkRecorder(context)
+        val transcriber = GeminiTranscriber()
+        try {
+            while (true) {
+                if (!recorder.startClip()) {
+                    delay(1_000L)
+                    continue
+                }
+                delay(CLIP_MS)
+                val file = recorder.stopClip() ?: continue
+                launch {
+                    val bytes = runCatching { file.readBytes() }.getOrNull()
+                    if (bytes != null) {
+                        val text = transcriber.transcribe(bytes, "audio/aac")
+                        Log.d("PeerPitchTranscribe", "clip -> ${text ?: "(none)"}")
+                        if (!text.isNullOrBlank()) session.addFinal(text)
+                    }
+                    runCatching { file.delete() }
+                }
+            }
+        } finally {
+            recorder.release()
         }
-        onDispose { speech?.stop() }
     }
 
-    // Gemini seam: assemble a metrics snapshot every 10s. Sending it to the LLM and
-    // surfacing feedback is intentionally not implemented yet.
+    // Refresh pace + flush the latest metrics to the session file on an interval.
     LaunchedEffect(granted) {
         if (!granted) return@LaunchedEffect
         while (true) {
             delay(SNAPSHOT_INTERVAL_MS)
-            session.tick() // refresh pace + flush the latest metrics to the session file
-            @Suppress("UNUSED_VARIABLE")
-            val snapshot = session.snapshot()
-            // TODO(Gemini): send `snapshot` to Gemini and display the returned feedback.
+            session.tick()
+            // TODO(Gemini): send session.snapshot() / samples for live tips + final summary.
         }
     }
 

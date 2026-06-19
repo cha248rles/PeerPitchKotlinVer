@@ -28,13 +28,23 @@ class SpeechController(
 
     /** Returns false if no recognition service is available (e.g. a bare emulator). */
     fun start(): Boolean {
-        if (!SpeechRecognizer.isRecognitionAvailable(context)) {
-            Log.w(TAG, "no speech recognition service available on this device")
-            return false
+        val useOnDevice = android.os.Build.VERSION.SDK_INT >= 33 &&
+            SpeechRecognizer.isOnDeviceRecognitionAvailable(context)
+        recognizer = when {
+            useOnDevice -> {
+                Log.d(TAG, "using ON-DEVICE recognizer")
+                SpeechRecognizer.createOnDeviceSpeechRecognizer(context)
+            }
+            SpeechRecognizer.isRecognitionAvailable(context) -> {
+                Log.d(TAG, "using DEFAULT recognizer")
+                SpeechRecognizer.createSpeechRecognizer(context)
+            }
+            else -> {
+                Log.w(TAG, "no speech recognition service available on this device")
+                return false
+            }
         }
-        recognizer = SpeechRecognizer.createSpeechRecognizer(context).apply {
-            setRecognitionListener(this@SpeechController)
-        }
+        recognizer?.setRecognitionListener(this@SpeechController)
         listening = true
         listen()
         Log.d(TAG, "listening started")
@@ -51,8 +61,9 @@ class SpeechController(
     private fun listen() {
         val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
             putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-            putExtra(RecognizerIntent.EXTRA_LANGUAGE, "en-US")
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE, "ja-JP") // TODO: make this ENG
             putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
+            putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true)
         }
         recognizer?.startListening(intent)
     }
