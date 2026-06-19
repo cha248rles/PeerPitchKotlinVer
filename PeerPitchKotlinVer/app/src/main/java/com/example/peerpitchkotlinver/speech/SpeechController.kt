@@ -28,22 +28,15 @@ class SpeechController(
 
     /** Returns false if no recognition service is available (e.g. a bare emulator). */
     fun start(): Boolean {
-        val useOnDevice = android.os.Build.VERSION.SDK_INT >= 33 &&
-            SpeechRecognizer.isOnDeviceRecognitionAvailable(context)
-        recognizer = when {
-            useOnDevice -> {
-                Log.d(TAG, "using ON-DEVICE recognizer")
-                SpeechRecognizer.createOnDeviceSpeechRecognizer(context)
-            }
-            SpeechRecognizer.isRecognitionAvailable(context) -> {
-                Log.d(TAG, "using DEFAULT recognizer")
-                SpeechRecognizer.createSpeechRecognizer(context)
-            }
-            else -> {
-                Log.w(TAG, "no speech recognition service available on this device")
-                return false
-            }
+        // Use the default (online) recognizer — the same Google service that powers Gboard
+        // voice typing, which works on the emulator. The on-device recognizer needs a language
+        // pack the emulator can't download, so we deliberately avoid it.
+        if (!SpeechRecognizer.isRecognitionAvailable(context)) {
+            Log.w(TAG, "no speech recognition service available on this device")
+            return false
         }
+        Log.d(TAG, "using DEFAULT (online) recognizer")
+        recognizer = SpeechRecognizer.createSpeechRecognizer(context)
         recognizer?.setRecognitionListener(this@SpeechController)
         listening = true
         listen()
@@ -61,9 +54,11 @@ class SpeechController(
     private fun listen() {
         val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
             putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-            putExtra(RecognizerIntent.EXTRA_LANGUAGE, "ja-JP") // TODO: make this ENG
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE, "en-US")
             putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
-            putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true)
+            // Online recognition (like Gboard voice typing). Offline needs a language pack the
+            // emulator can't download, which was the old NO_MATCH cause.
+            putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, false)
         }
         recognizer?.startListening(intent)
     }
@@ -96,15 +91,25 @@ class SpeechController(
     private fun firstResult(bundle: Bundle?): String? =
         bundle?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull()
 
+    private var rmsLogCounter = 0
+    private var maxRms = 0f
+
     private companion object {
         const val TAG = "PeerPitchSpeech"
     }
 
-    // Unused callbacks.
-    override fun onReadyForSpeech(params: Bundle?) {}
-    override fun onBeginningOfSpeech() {}
-    override fun onRmsChanged(rmsdB: Float) {}
+    override fun onReadyForSpeech(params: Bundle?) {
+        maxRms = 0f
+        Log.d(TAG, "ready for speech (mic open)")
+    }
+    override fun onBeginningOfSpeech() { Log.d(TAG, "BEGINNING of speech detected") }
+    override fun onRmsChanged(rmsdB: Float) {
+        // Throttled: log the peak mic level roughly once a second. If this stays near its
+        // floor (~ -2 dB) while you talk, no audio is reaching the recognizer.
+        maxRms = maxOf(maxRms, rmsdB)
+        if (rmsLogCounter++ % 20 == 0) Log.d(TAG, "mic rms peak so far = $maxRms dB")
+    }
     override fun onBufferReceived(buffer: ByteArray?) {}
-    override fun onEndOfSpeech() {}
+    override fun onEndOfSpeech() { Log.d(TAG, "END of speech") }
     override fun onEvent(eventType: Int, params: Bundle?) {}
 }

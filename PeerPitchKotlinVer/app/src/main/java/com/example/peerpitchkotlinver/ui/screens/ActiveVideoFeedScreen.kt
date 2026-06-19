@@ -41,16 +41,11 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.NonCancellable
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import android.util.Log
-import com.example.peerpitchkotlinver.ai.GeminiTranscriber
 import com.example.peerpitchkotlinver.camera.CameraPreview
 import com.example.peerpitchkotlinver.session.SessionState
 import com.example.peerpitchkotlinver.session.SessionStore
-import com.example.peerpitchkotlinver.speech.AudioChunkRecorder
+import com.example.peerpitchkotlinver.speech.SpeechController
 import com.example.peerpitchkotlinver.ui.components.OutlinedHomeButton
 import com.example.peerpitchkotlinver.ui.components.OutlinedPillButton
 import com.example.peerpitchkotlinver.ui.theme.PitchFeedDark
@@ -60,22 +55,14 @@ import kotlinx.coroutines.delay
 
 private val REQUIRED_PERMISSIONS = arrayOf(Manifest.permission.CAMERA, Manifest.permission.RECORD_AUDIO)
 
-/** Interval at which a metrics snapshot is assembled for the LLM. */
+/** Interval at which a metrics sample (eye contact + pace) is captured for the summary. */
 private const val SNAPSHOT_INTERVAL_MS = 10_000L
 
-/** Length of each audio clip sent to Gemini for transcription. */
-private const val CLIP_MS = 10_000L
-
-/** How often to sample mic amplitude while a clip records. */
-private const val AMP_POLL_MS = 250L
-
 /**
- * Minimum peak amplitude (0..32767) a clip must reach to be transcribed. Clips quieter than
- * this are treated as silence and skipped, since Gemini hallucinates plausible-sounding
- * speech ("Here's a brief introduction...") when handed near-silent audio. Tune against the
- * "peak=" values logged below for your mic/emulator.
+ * TEMP DEBUG: when true, the camera is not started, so SpeechRecognizer runs alone. Used to
+ * test whether CameraX + speech recognition contend for the emulator mic. Set back to false.
  */
-private const val SILENCE_THRESHOLD = 225
+private const val DISABLE_CAMERA_FOR_SPEECH_TEST = true
 
 @Composable
 fun ActiveVideoFeedScreen(onEnd: () -> Unit = {}, onHome: () -> Unit = {}) {
@@ -98,56 +85,29 @@ fun ActiveVideoFeedScreen(onEnd: () -> Unit = {}, onHome: () -> Unit = {}) {
         if (!granted) permissionLauncher.launch(REQUIRED_PERMISSIONS)
     }
 
-    // Transcribe mic audio with Gemini in short clips (Android's on-device recognizer is
-    // unavailable on the emulator). Record a clip, then transcribe it in the background and
-    // append the text to the running transcript while the next clip records.
-    LaunchedEffect(granted) {
-        if (!granted) return@LaunchedEffect
+    // Live transcription via Android's built-in SpeechRecognizer — the same online Google
+    // service that powers Gboard voice typing (which works on the emulator). Partial results
+    // feed the live transcript; finalized segments commit into the session metrics.
+    DisposableEffect(granted) {
+        if (!granted) return@DisposableEffect onDispose { }
         session.begin()
-        val recorder = AudioChunkRecorder(context)
-        val transcriber = GeminiTranscriber()
-        try {
-            while (true) {
-                // MediaRecorder start/stop and file I/O block, so keep them off the UI thread.
-                if (!withContext(Dispatchers.IO) { recorder.startClip() }) {
-                    delay(1_000L)
-                    continue
-                }
-                // Track the loudest moment of the clip so we can skip silent ones.
-                var peak = 0
-                repeat((CLIP_MS / AMP_POLL_MS).toInt()) {
-                    delay(AMP_POLL_MS)
-                    peak = maxOf(peak, withContext(Dispatchers.IO) { recorder.peakAmplitude() })
-                }
-                val file = withContext(Dispatchers.IO) { recorder.stopClip() } ?: continue
-                if (peak < SILENCE_THRESHOLD) {
-                    // Silence/room noise: don't send it, or Gemini invents speech.
-                    Log.d("PeerPitchTranscribe", "skip silent clip (peak=$peak)")
-                    withContext(Dispatchers.IO) { runCatching { file.delete() } }
-                    continue
-                }
-                launch(Dispatchers.IO) {
-                    val bytes = runCatching { file.readBytes() }.getOrNull()
-                    if (bytes != null) {
-                        val text = transcriber.transcribe(bytes, "audio/aac")
-                        Log.d("PeerPitchTranscribe", "clip (peak=$peak) -> ${text ?: "(none)"}")
-                        if (!text.isNullOrBlank()) session.addFinal(text)
-                    }
-                    runCatching { file.delete() }
-                }
-            }
-        } finally {
-            withContext(NonCancellable + Dispatchers.IO) { recorder.release() }
+        val speech = SpeechController(
+            context,
+            onPartial = { session.updatePartial(it) },
+            onFinal = { session.addFinal(it) }
+        )
+        if (!speech.start()) {
+            Log.w("PeerPitchSpeech", "speech recognition unavailable on this device")
         }
+        onDispose { speech.stop() }
     }
 
-    // Refresh pace + flush the latest metrics to the session file on an interval.
+    // Capture an eye-contact + pace sample on an interval to build the summary time-series.
     LaunchedEffect(granted) {
         if (!granted) return@LaunchedEffect
         while (true) {
             delay(SNAPSHOT_INTERVAL_MS)
-            session.tick()
-            // TODO(Gemini): send session.snapshot() / samples for live tips + final summary.
+            session.sample()
         }
     }
 
@@ -177,10 +137,12 @@ fun ActiveVideoFeedScreen(onEnd: () -> Unit = {}, onHome: () -> Unit = {}) {
                 .background(PitchFeedDark)
         ) {
             if (granted) {
-                CameraPreview(
-                    onEyeContact = { session.eyeContact = it },
-                    modifier = Modifier.fillMaxSize()
-                )
+                if (!DISABLE_CAMERA_FOR_SPEECH_TEST) {
+                    CameraPreview(
+                        onEyeContact = { session.eyeContact = it },
+                        modifier = Modifier.fillMaxSize()
+                    )
+                }
                 MetricsOverlay(session)
             } else {
                 PermissionPrompt(onGrant = { permissionLauncher.launch(REQUIRED_PERMISSIONS) })
