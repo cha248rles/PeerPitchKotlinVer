@@ -41,7 +41,10 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import android.util.Log
 import com.example.peerpitchkotlinver.ai.GeminiTranscriber
 import com.example.peerpitchkotlinver.camera.CameraPreview
@@ -62,6 +65,17 @@ private const val SNAPSHOT_INTERVAL_MS = 10_000L
 
 /** Length of each audio clip sent to Gemini for transcription. */
 private const val CLIP_MS = 10_000L
+
+/** How often to sample mic amplitude while a clip records. */
+private const val AMP_POLL_MS = 250L
+
+/**
+ * Minimum peak amplitude (0..32767) a clip must reach to be transcribed. Clips quieter than
+ * this are treated as silence and skipped, since Gemini hallucinates plausible-sounding
+ * speech ("Here's a brief introduction...") when handed near-silent audio. Tune against the
+ * "peak=" values logged below for your mic/emulator.
+ */
+private const val SILENCE_THRESHOLD = 225
 
 @Composable
 fun ActiveVideoFeedScreen(onEnd: () -> Unit = {}, onHome: () -> Unit = {}) {
@@ -94,24 +108,36 @@ fun ActiveVideoFeedScreen(onEnd: () -> Unit = {}, onHome: () -> Unit = {}) {
         val transcriber = GeminiTranscriber()
         try {
             while (true) {
-                if (!recorder.startClip()) {
+                // MediaRecorder start/stop and file I/O block, so keep them off the UI thread.
+                if (!withContext(Dispatchers.IO) { recorder.startClip() }) {
                     delay(1_000L)
                     continue
                 }
-                delay(CLIP_MS)
-                val file = recorder.stopClip() ?: continue
-                launch {
+                // Track the loudest moment of the clip so we can skip silent ones.
+                var peak = 0
+                repeat((CLIP_MS / AMP_POLL_MS).toInt()) {
+                    delay(AMP_POLL_MS)
+                    peak = maxOf(peak, withContext(Dispatchers.IO) { recorder.peakAmplitude() })
+                }
+                val file = withContext(Dispatchers.IO) { recorder.stopClip() } ?: continue
+                if (peak < SILENCE_THRESHOLD) {
+                    // Silence/room noise: don't send it, or Gemini invents speech.
+                    Log.d("PeerPitchTranscribe", "skip silent clip (peak=$peak)")
+                    withContext(Dispatchers.IO) { runCatching { file.delete() } }
+                    continue
+                }
+                launch(Dispatchers.IO) {
                     val bytes = runCatching { file.readBytes() }.getOrNull()
                     if (bytes != null) {
                         val text = transcriber.transcribe(bytes, "audio/aac")
-                        Log.d("PeerPitchTranscribe", "clip -> ${text ?: "(none)"}")
+                        Log.d("PeerPitchTranscribe", "clip (peak=$peak) -> ${text ?: "(none)"}")
                         if (!text.isNullOrBlank()) session.addFinal(text)
                     }
                     runCatching { file.delete() }
                 }
             }
         } finally {
-            recorder.release()
+            withContext(NonCancellable + Dispatchers.IO) { recorder.release() }
         }
     }
 

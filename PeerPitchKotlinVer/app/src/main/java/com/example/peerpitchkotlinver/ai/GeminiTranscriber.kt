@@ -39,6 +39,10 @@ class GeminiTranscriber {
     private companion object {
         const val TAG = "PeerPitchTranscribe"
         // If this 404s, the model name is the thing to change.
+        //  - 2.5-flash-lite: works on this SDK but too weak; hallucinated unrelated sentences.
+        //  - 2.5-flash: thinking model; returns a candidate with no `parts`, which the
+        //    deprecated generativeai SDK can't deserialize ("Field 'parts' is required").
+        //  - 2.0-flash: no thinking, SDK-compatible, and a solid audio transcriber.
         const val MODEL = "gemini-2.5-flash-lite"
         const val PROMPT =
             "Transcribe the spoken words in this audio clip to plain text. " +

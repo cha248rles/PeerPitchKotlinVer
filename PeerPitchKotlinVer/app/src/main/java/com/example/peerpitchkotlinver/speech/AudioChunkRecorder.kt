@@ -42,6 +42,12 @@ class AudioChunkRecorder(private val context: Context) {
         }.getOrDefault(false)
     }
 
+    /**
+     * Peak amplitude (0..32767) since the previous call, or 0 if not recording. Poll this
+     * while a clip records to decide whether it actually contains speech vs. silence.
+     */
+    fun peakAmplitude(): Int = runCatching { recorder?.maxAmplitude ?: 0 }.getOrDefault(0)
+
     /** Stop the current clip and return its file, or null if nothing usable was recorded. */
     fun stopClip(): File? {
         val rec = recorder ?: return null
