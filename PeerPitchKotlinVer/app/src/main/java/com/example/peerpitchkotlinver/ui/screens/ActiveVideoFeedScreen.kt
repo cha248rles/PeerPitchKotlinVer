@@ -28,6 +28,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -42,6 +43,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import android.util.Log
+import com.example.peerpitchkotlinver.ai.GeminiCoach
 import com.example.peerpitchkotlinver.camera.CameraPreview
 import com.example.peerpitchkotlinver.session.SessionState
 import com.example.peerpitchkotlinver.session.SessionStore
@@ -52,6 +54,7 @@ import com.example.peerpitchkotlinver.ui.theme.PitchFeedDark
 import com.example.peerpitchkotlinver.ui.theme.PitchGold
 import com.example.peerpitchkotlinver.vision.EyeContact
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 private val REQUIRED_PERMISSIONS = arrayOf(Manifest.permission.CAMERA, Manifest.permission.RECORD_AUDIO)
 
@@ -65,9 +68,12 @@ private const val SNAPSHOT_INTERVAL_MS = 10_000L
 private const val DISABLE_CAMERA_FOR_SPEECH_TEST = true
 
 @Composable
-fun ActiveVideoFeedScreen(onEnd: () -> Unit = {}, onHome: () -> Unit = {}) {
+fun ActiveVideoFeedScreen(onEnd: (PitchResult) -> Unit = {}, onHome: () -> Unit = {}) {
     val context = LocalContext.current
     val session = remember { SessionState(SessionStore(context)) }
+    val coach = remember { GeminiCoach(context) }
+    val scope = rememberCoroutineScope()
+    var analyzing by remember { mutableStateOf(false) }
 
     var granted by remember {
         mutableStateOf(
@@ -111,6 +117,33 @@ fun ActiveVideoFeedScreen(onEnd: () -> Unit = {}, onHome: () -> Unit = {}) {
         }
     }
 
+    // On "End": capture a final sample, ask Gemini for the summary (one call), assemble the
+    // result from Gemini's feedback + the metrics we already track, then navigate to Results.
+    fun finishSession() {
+        if (analyzing) return
+        analyzing = true
+        scope.launch {
+            session.sample()
+            // Include `partial` — the sentence still in progress when End is pressed lives there
+            // (Vosk only commits it to `transcript` on stop(), which fires later during dispose).
+            val fullTranscript = "${session.transcript} ${session.partial}".trim()
+            val feedback = coach.summarize(
+                session.samplesSnapshot(), session.fillerWordCount, fullTranscript
+            )
+            onEnd(
+                PitchResult(
+                    score = feedback?.score ?: 0,
+                    eyeContact = feedback?.eyeContact ?: "—",
+                    fillerWordCount = session.fillerWordCount,
+                    durationLabel = formatDuration(session.elapsedMs),
+                    transcription = fullTranscript.ifBlank { "(no speech captured)" },
+                    suggestions = feedback?.suggestions?.ifEmpty { null }
+                        ?: listOf("Couldn't generate feedback: ${coach.lastError ?: "no suggestions returned"}")
+                )
+            )
+        }
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -144,6 +177,7 @@ fun ActiveVideoFeedScreen(onEnd: () -> Unit = {}, onHome: () -> Unit = {}) {
                     )
                 }
                 MetricsOverlay(session)
+                if (analyzing) AnalyzingOverlay()
             } else {
                 PermissionPrompt(onGrant = { permissionLauncher.launch(REQUIRED_PERMISSIONS) })
             }
@@ -153,8 +187,8 @@ fun ActiveVideoFeedScreen(onEnd: () -> Unit = {}, onHome: () -> Unit = {}) {
             modifier = Modifier.align(Alignment.CenterHorizontally),
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            OutlinedHomeButton(text = "Home", onClick = onHome)
-            OutlinedPillButton(text = "End", onClick = onEnd)
+            OutlinedHomeButton(text = "Home", onClick = { if (!analyzing) onHome() })
+            OutlinedPillButton(text = "End", onClick = { finishSession() })
         }
         Spacer(modifier = Modifier.height(16.dp))
     }
@@ -212,6 +246,32 @@ private fun BoxScope.MetricsOverlay(session: SessionState) {
             textAlign = TextAlign.Center
         )
     }
+}
+
+/** Covers the feed while the end-of-session Gemini summary call runs. */
+@Composable
+private fun BoxScope.AnalyzingOverlay() {
+    Column(
+        modifier = Modifier
+            .matchParentSize()
+            .background(Color(0xCC000000)),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(
+            text = "Analyzing your pitch…",
+            color = PitchGold,
+            fontSize = 16.sp,
+            fontWeight = FontWeight.SemiBold,
+            textAlign = TextAlign.Center
+        )
+    }
+}
+
+/** Format elapsed milliseconds as M:SS for the results screen. */
+private fun formatDuration(ms: Long): String {
+    val totalSeconds = ms / 1000
+    return "${totalSeconds / 60}:${(totalSeconds % 60).toString().padStart(2, '0')}"
 }
 
 @Composable

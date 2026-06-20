@@ -32,13 +32,13 @@ Never go below 30 for a genuine attempt.
 Return ONLY valid JSON, no markdown, no code fences, exactly:
 {
   "score": <integer 0-100>,
-  "eyeContact": "<short label: Good | Inconsistent | Poor>",
+  "eyeContact": "<one of: Bad | Poor | Good | Amazing>",
   "suggestions": ["<tip>", "<tip>", "<tip>"]
 }
 
 Rules:
-- 2 to 4 suggestions, each under 12 words, specific and actionable.
+- Exactly 3 suggestions, each under 12 words, specific and actionable.
+- "eyeContact" must be exactly one of: Bad, Poor, Good, Amazing (worst to best).
 - Ground every point in the metrics provided; do not invent details.
 - Be encouraging: phrase tips as improvements, not just criticism.
-Should stick to 3 bullet points
 

@@ -1,115 +1,104 @@
 package com.example.peerpitchkotlinver.speech
 
 import android.content.Context
-import android.content.Intent
-import android.os.Bundle
-import android.speech.RecognitionListener
-import android.speech.RecognizerIntent
-import android.speech.SpeechRecognizer
 import android.util.Log
+import org.json.JSONObject
+import org.vosk.Model
+import org.vosk.Recognizer
+import org.vosk.android.RecognitionListener
+import org.vosk.android.SpeechService
+import org.vosk.android.StorageService
 
 /**
- * Thin wrapper around Android's built-in [SpeechRecognizer] that keeps listening
- * continuously by restarting itself whenever a result or timeout occurs.
+ * Continuous speech-to-text using Vosk — an OFFLINE, on-device recognizer. Unlike Android's
+ * [android.speech.SpeechRecognizer], it has no per-utterance server session: it captures the
+ * mic itself and streams results indefinitely, so it survives a full multi-minute pitch with
+ * no restart loop, no ~60s cap, and no quota. (Android's recognizer died after one session on
+ * the emulator with ERROR_SERVER_DISCONNECTED — see git history.)
  *
- * [onPartial] fires with the live (in-progress) text; [onFinal] fires with a committed
- * segment once the recognizer finalizes it. Requires the RECORD_AUDIO permission and a
- * speech-recognition service on the device. All methods must be called on the main thread.
+ * [onPartial] fires with the live in-progress text; [onFinal] fires with a finalized segment.
+ * The bundled English model lives in `assets/model-en-us`. Requires RECORD_AUDIO. Start/stop
+ * on the main thread; result callbacks arrive on the main thread.
  */
 class SpeechController(
-    private val context: Context,
+    context: Context,
     private val onPartial: (String) -> Unit,
     private val onFinal: (String) -> Unit
 ) : RecognitionListener {
 
-    private var recognizer: SpeechRecognizer? = null
-    private var listening = false
-    private val handler = android.os.Handler(android.os.Looper.getMainLooper())
+    private val appContext = context.applicationContext
+    private var model: Model? = null
+    private var speechService: SpeechService? = null
+    private var started = false
 
-    /** Returns false if no recognition service is available (e.g. a bare emulator). */
+    /** Begins loading the model (first-run unpack) and then listening. Always returns true. */
     fun start(): Boolean {
-        // Use the default (online) recognizer — the same Google service that powers Gboard
-        // voice typing, which works on the emulator. The on-device recognizer needs a language
-        // pack the emulator can't download, so we deliberately avoid it.
-        if (!SpeechRecognizer.isRecognitionAvailable(context)) {
-            Log.w(TAG, "no speech recognition service available on this device")
-            return false
-        }
-        Log.d(TAG, "using DEFAULT (online) recognizer")
-        recognizer = SpeechRecognizer.createSpeechRecognizer(context)
-        recognizer?.setRecognitionListener(this@SpeechController)
-        listening = true
-        listen()
-        Log.d(TAG, "listening started")
+        started = true
+        // Unpack the model from assets to internal storage (cached after the first run), then
+        // start listening once it's ready. Loading happens off the main thread.
+        StorageService.unpack(
+            appContext, MODEL_ASSET, "model",
+            { loaded ->
+                if (!started) { loaded.close(); return@unpack }
+                model = loaded
+                beginListening()
+            },
+            { e -> Log.e(TAG, "model load failed", e) }
+        )
         return true
     }
 
+    private fun beginListening() {
+        runCatching {
+            val recognizer = Recognizer(model, SAMPLE_RATE)
+            speechService = SpeechService(recognizer, SAMPLE_RATE)
+            speechService?.startListening(this)
+            Log.d(TAG, "vosk listening started")
+        }.onFailure { Log.e(TAG, "failed to start vosk", it) }
+    }
+
     fun stop() {
-        listening = false
-        handler.removeCallbacksAndMessages(null)
-        recognizer?.destroy()
-        recognizer = null
-    }
-
-    private fun listen() {
-        val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-            putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-            putExtra(RecognizerIntent.EXTRA_LANGUAGE, "en-US")
-            putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
-            // Online recognition (like Gboard voice typing). Offline needs a language pack the
-            // emulator can't download, which was the old NO_MATCH cause.
-            putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, false)
+        started = false
+        runCatching {
+            speechService?.stop()
+            speechService?.shutdown()
         }
-        recognizer?.startListening(intent)
+        speechService = null
+        model?.close()
+        model = null
+}
+
+    override fun onPartialResult(hypothesis: String?) {
+        val text = fieldOf(hypothesis, "partial")
+        if (text.isNotBlank()) onPartial(text)
     }
 
-    override fun onPartialResults(partialResults: Bundle?) {
-        firstResult(partialResults)?.let {
-            if (it.isNotBlank()) {
-                Log.d(TAG, "partial: $it")
-                onPartial(it)
-            }
+    override fun onResult(hypothesis: String?) {
+        val text = fieldOf(hypothesis, "text")
+        if (text.isNotBlank()) {
+            Log.d(TAG, "final: $text")
+            onFinal(text)
         }
     }
 
-    override fun onResults(results: Bundle?) {
-        firstResult(results)?.let {
-            if (it.isNotBlank()) {
-                Log.d(TAG, "final: $it")
-                onFinal(it)
-            }
-        }
-        if (listening) listen() // restart for continuous transcription
+    override fun onFinalResult(hypothesis: String?) {
+        // The tail flushed when listening stops; append anything not already emitted.
+        val text = fieldOf(hypothesis, "text")
+        if (text.isNotBlank()) onFinal(text)
     }
 
-    override fun onError(error: Int) {
-        // Common during pauses (ERROR_NO_MATCH / ERROR_SPEECH_TIMEOUT); just keep going.
-        Log.d(TAG, "error code=$error (restarting)")
-        if (listening) handler.postDelayed({ if (listening) listen() }, 600L)
+    override fun onError(exception: Exception?) {
+        Log.w(TAG, "vosk error", exception)
     }
 
-    private fun firstResult(bundle: Bundle?): String? =
-        bundle?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull()
+    override fun onTimeout() {}
 
-    private var rmsLogCounter = 0
-    private var maxRms = 0f
+    private fun fieldOf(json: String?, key: String): String =
+        runCatching { JSONObject(json ?: "{}").optString(key) }.getOrDefault("")
 
     private companion object {
         const val TAG = "PeerPitchSpeech"
+        const val MODEL_ASSET = "model-en-us"
+        const val SAMPLE_RATE = 16000.0f
     }
-
-    override fun onReadyForSpeech(params: Bundle?) {
-        maxRms = 0f
-        Log.d(TAG, "ready for speech (mic open)")
-    }
-    override fun onBeginningOfSpeech() { Log.d(TAG, "BEGINNING of speech detected") }
-    override fun onRmsChanged(rmsdB: Float) {
-        // Throttled: log the peak mic level roughly once a second. If this stays near its
-        // floor (~ -2 dB) while you talk, no audio is reaching the recognizer.
-        maxRms = maxOf(maxRms, rmsdB)
-        if (rmsLogCounter++ % 20 == 0) Log.d(TAG, "mic rms peak so far = $maxRms dB")
-    }
-    override fun onBufferReceived(buffer: ByteArray?) {}
-    override fun onEndOfSpeech() { Log.d(TAG, "END of speech") }
-    override fun onEvent(eventType: Int, params: Bundle?) {}
 }

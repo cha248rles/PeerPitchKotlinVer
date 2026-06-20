@@ -50,6 +50,10 @@ android {
         compose = true
         buildConfig = true
     }
+    // Don't compress the Vosk model files — they're read straight from assets at runtime.
+    androidResources {
+        noCompress += listOf("mdl", "fst", "int", "stats", "mat", "ie", "dubm", "conf")
+    }
 }
 
 dependencies {
@@ -74,6 +78,8 @@ dependencies {
     implementation(libs.mediapipe.tasks.vision)
     // Gemini (Google AI Kotlin SDK) — LLM feedback; uses BuildConfig.GEMINI_API_KEY
     implementation(libs.generativeai)
+    // Vosk — offline, on-device continuous speech recognition (no server, no time limit)
+    implementation(libs.vosk.android)
     testImplementation(libs.junit)
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)

@@ -123,9 +123,13 @@ class SessionState(private val store: SessionStore? = null) {
         private val WHITESPACE = Regex("\\s+")
         private const val WINDOW_MS = 30_000L
         private const val MIN_MINUTES = 1.0 / 60.0 // avoid divide-by-zero in the first second
+        // NOTE: "um"/"uh" and other non-word sounds are usually NOT in the Vosk small model's
+        // vocabulary, so they never reach the transcript and can't be counted. The lexical
+        // fillers below (real words) do get transcribed, so those we can reliably catch.
         private val FILLER_WORDS = listOf(
-            "um", "uh", "uhm", "umm", "er", "ah", "hmm",
-            "like", "you know", "i mean", "kind of", "sort of"
+            "um", "uh", "uhm", "umm", "er", "ah", "hmm", "mhm", "eh",
+            "like", "you know", "i mean", "kind of", "sort of",
+            "actually", "basically", "literally", "honestly", "i guess", "you know what i mean"
         )
     }
 }
