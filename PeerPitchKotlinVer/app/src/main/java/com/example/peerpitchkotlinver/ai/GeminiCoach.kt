@@ -12,9 +12,13 @@ import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
 
-/** End-of-session coaching feedback parsed from Gemini's JSON response. */
+/**
+ * End-of-session coaching feedback parsed from Gemini's JSON response. Gemini only judges
+ * the subjective [speechQuality] (0..40); the app combines it with the eye-tracking and
+ * filler sections in [com.example.peerpitchkotlinver.session.PitchScore] for the final grade.
+ */
 data class CoachFeedback(
-    val score: Int,
+    val speechQuality: Int,
     val eyeContact: String,
     val suggestions: List<String>
 )
@@ -113,7 +117,7 @@ class GeminiCoach(context: Context) {
         val obj = JSONObject(json)
         val tips = obj.getJSONArray("suggestions")
         return CoachFeedback(
-            score = obj.getInt("score"),
+            speechQuality = obj.getInt("speechQuality"),
             eyeContact = obj.getString("eyeContact"),
             suggestions = (0 until tips.length()).map { tips.getString(it) }
         )

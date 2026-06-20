@@ -45,6 +45,7 @@ import androidx.core.content.ContextCompat
 import android.util.Log
 import com.example.peerpitchkotlinver.ai.GeminiCoach
 import com.example.peerpitchkotlinver.camera.CameraPreview
+import com.example.peerpitchkotlinver.session.PitchScore
 import com.example.peerpitchkotlinver.session.SessionState
 import com.example.peerpitchkotlinver.session.SessionStore
 import com.example.peerpitchkotlinver.speech.SpeechController
@@ -127,12 +128,22 @@ fun ActiveVideoFeedScreen(onEnd: (PitchResult) -> Unit = {}, onHome: () -> Unit 
             // Include `partial` — the sentence still in progress when End is pressed lives there
             // (Vosk only commits it to `transcript` on stop(), which fires later during dispose).
             val fullTranscript = "${session.transcript} ${session.partial}".trim()
+            val samples = session.samplesSnapshot()
             val feedback = coach.summarize(
-                session.samplesSnapshot(), session.fillerWordCount, fullTranscript
+                samples, session.fillerWordCount, fullTranscript
+            )
+            // Final grade is computed deterministically from the metrics (eye tracking +
+            // fillers in code, speech quality from Gemini) so the same pitch always scores
+            // the same — see PitchScore. Gemini failing just zeroes the speech-quality slice.
+            val score = PitchScore.total(
+                samples = samples,
+                fillerWordCount = session.fillerWordCount,
+                speechQuality = feedback?.speechQuality ?: 0,
+                transcript = fullTranscript
             )
             onEnd(
                 PitchResult(
-                    score = feedback?.score ?: 0,
+                    score = score,
                     eyeContact = feedback?.eyeContact ?: "—",
                     fillerWordCount = session.fillerWordCount,
                     durationLabel = formatDuration(session.elapsedMs),

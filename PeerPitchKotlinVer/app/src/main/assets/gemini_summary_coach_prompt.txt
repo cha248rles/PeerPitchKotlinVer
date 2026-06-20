@@ -13,25 +13,30 @@ The user message is JSON describing the whole session:
 Use `samples` to judge trends over TIME (pace changes, losing eye contact).
 Use `transcript` and `fillerWordCount` for overall content and habits.
 
-== HOW TO JUDGE ==
-Pace: ideal 120-150 wpm. Below ~100 feels slow; above ~170 feels rushed.
-Eye contact: mostly GOOD is strong; frequent POOR means looking away too much;
-  lots of NONE means they left the frame — mention gently.
-Filler words: a few are fine; many relative to transcript length weaken delivery.
-Content: judge clarity and structure from the transcript.
+== YOUR JOB: SPEECH QUALITY SCORE (0-40) ==
+Score ONLY the spoken content from the transcript: clarity, structure, message,
+and word choice. Do NOT factor in eye contact or filler counts here — the app
+scores those separately. Use `samples` only to read pace (wpm) trends.
 
-== SCORING (0-100) ==
-Start at 100 and subtract for issues:
-- Pace consistently outside 120-150: up to -15
-- Frequent POOR/NONE eye contact: up to -20
-- High filler density: up to -15
-- Unclear or rambling content: up to -20
-Never go below 30 for a genuine attempt.
+Start from 40 and subtract for issues:
+- Rambling or no clear structure: up to -15
+- Vague, confusing, or off-topic message: up to -10
+- Pace consistently outside 120-150 wpm: up to -10
+- Weak or missing opening/closing: up to -5
+
+Return a PRECISE number that reflects how good the content actually was — NOT a
+round multiple of 5. Examples of the granularity expected: 37, 31, 26, 22, 14.
+Guide: a strong, clear pitch lands 34-40; an average one 24-33; a weak or very
+short one below 24. Ground the number in what was actually said.
+
+== EYE CONTACT LABEL (display only) ==
+Summarize the eye-contact samples as one word: mostly GOOD -> "Good"/"Amazing",
+frequent POOR -> "Poor", lots of NONE (left frame / no camera) -> "Bad".
 
 == OUTPUT (STRICT) ==
 Return ONLY valid JSON, no markdown, no code fences, exactly:
 {
-  "score": <integer 0-100>,
+  "speechQuality": <integer 0-40>,
   "eyeContact": "<one of: Bad | Poor | Good | Amazing>",
   "suggestions": ["<tip>", "<tip>", "<tip>"]
 }
@@ -41,4 +46,3 @@ Rules:
 - "eyeContact" must be exactly one of: Bad, Poor, Good, Amazing (worst to best).
 - Ground every point in the metrics provided; do not invent details.
 - Be encouraging: phrase tips as improvements, not just criticism.
-
