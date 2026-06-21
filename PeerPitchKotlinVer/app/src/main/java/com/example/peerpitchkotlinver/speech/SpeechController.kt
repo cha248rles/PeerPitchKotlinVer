@@ -1,97 +1,125 @@
 package com.example.peerpitchkotlinver.speech
 
 import android.content.Context
+import android.media.AudioFormat
+import android.media.AudioRecord
+import android.media.MediaRecorder
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
 import org.json.JSONObject
 import org.vosk.Model
 import org.vosk.Recognizer
-import org.vosk.android.RecognitionListener
-import org.vosk.android.SpeechService
 import org.vosk.android.StorageService
+import kotlin.concurrent.thread
 
 /**
- * Continuous speech-to-text using Vosk — an OFFLINE, on-device recognizer. Unlike Android's
- * [android.speech.SpeechRecognizer], it has no per-utterance server session: it captures the
- * mic itself and streams results indefinitely, so it survives a full multi-minute pitch with
- * no restart loop, no ~60s cap, and no quota. (Android's recognizer died after one session on
- * the emulator with ERROR_SERVER_DISCONNECTED — see git history.)
+ * Continuous speech-to-text using Vosk — an OFFLINE, on-device recognizer.
+ *
+ * Unlike the Vosk-provided `SpeechService`, this owns its OWN [AudioRecord] and pumps PCM into
+ * the [Recognizer] directly. That's deliberate: `SpeechService` opens the mic with
+ * `AudioSource.VOICE_RECOGNITION`, which on the emulator (and some devices) is bound to the
+ * camera-associated audio path — so the moment CameraX opens the camera, that source is
+ * rerouted and the recognizer is fed pure silence. Capturing from [AudioSource.MIC] ourselves
+ * keeps us on the primary built-in mic, which is independent of the camera. (See git history for
+ * the camera+mic silence investigation.)
  *
  * [onPartial] fires with the live in-progress text; [onFinal] fires with a finalized segment.
- * The bundled English model lives in `assets/model-en-us`. Requires RECORD_AUDIO. Start/stop
- * on the main thread; result callbacks arrive on the main thread.
+ * The bundled English model lives in `assets/model-en-us`. Requires RECORD_AUDIO. Start/stop on
+ * the main thread; result callbacks are posted to the main thread.
  */
 class SpeechController(
     context: Context,
     private val onPartial: (String) -> Unit,
     private val onFinal: (String) -> Unit
-) : RecognitionListener {
+) {
 
     private val appContext = context.applicationContext
+    private val mainHandler = Handler(Looper.getMainLooper())
     private var model: Model? = null
-    private var speechService: SpeechService? = null
-    private var started = false
+    private var recorder: AudioRecord? = null
+    private var captureThread: Thread? = null
+    @Volatile private var running = false
 
     /** Begins loading the model (first-run unpack) and then listening. Always returns true. */
     fun start(): Boolean {
-        started = true
+        running = true
         // Unpack the model from assets to internal storage (cached after the first run), then
-        // start listening once it's ready. Loading happens off the main thread.
+        // start capturing once it's ready. Loading happens off the main thread.
         StorageService.unpack(
             appContext, MODEL_ASSET, "model",
             { loaded ->
-                if (!started) { loaded.close(); return@unpack }
+                if (!running) { loaded.close(); return@unpack }
                 model = loaded
-                beginListening()
+                beginCapture()
             },
             { e -> Log.e(TAG, "model load failed", e) }
         )
         return true
     }
 
-    private fun beginListening() {
-        runCatching {
-            val recognizer = Recognizer(model, SAMPLE_RATE)
-            speechService = SpeechService(recognizer, SAMPLE_RATE)
-            speechService?.startListening(this)
-            Log.d(TAG, "vosk listening started")
-        }.onFailure { Log.e(TAG, "failed to start vosk", it) }
+    private fun beginCapture() {
+        val minBuffer = AudioRecord.getMinBufferSize(SAMPLE_RATE, CHANNEL, ENCODING)
+        if (minBuffer <= 0) {
+            Log.e(TAG, "AudioRecord.getMinBufferSize failed: $minBuffer")
+            return
+        }
+        val bufferBytes = maxOf(minBuffer, SAMPLE_RATE) // ~1s of headroom
+        val record = runCatching {
+            @Suppress("MissingPermission") // RECORD_AUDIO is checked by the caller before start()
+            AudioRecord(AUDIO_SOURCE, SAMPLE_RATE, CHANNEL, ENCODING, bufferBytes)
+        }.getOrElse {
+            Log.e(TAG, "failed to create AudioRecord", it)
+            return
+        }
+        if (record.state != AudioRecord.STATE_INITIALIZED) {
+            Log.e(TAG, "AudioRecord not initialized (state=${record.state})")
+            record.release()
+            return
+        }
+        val recognizer = runCatching { Recognizer(model, SAMPLE_RATE.toFloat()) }.getOrElse {
+            Log.e(TAG, "failed to create recognizer", it)
+            record.release()
+            return
+        }
+        recorder = record
+        record.startRecording()
+        Log.d(TAG, "vosk capture started (source=$AUDIO_SOURCE)")
+
+        captureThread = thread(name = "vosk-capture") {
+            val buffer = ShortArray(bufferBytes / 2)
+            recognizer.use { rec ->
+                while (running) {
+                    val n = record.read(buffer, 0, buffer.size)
+                    if (n <= 0) continue
+                    if (rec.acceptWaveForm(buffer, n)) {
+                        emit(fieldOf(rec.result, "text"), onFinal)
+                    } else {
+                        emit(fieldOf(rec.partialResult, "partial"), onPartial)
+                    }
+                }
+                // Flush the tail captured before stop().
+                emit(fieldOf(rec.finalResult, "text"), onFinal)
+            }
+            runCatching {
+                record.stop()
+                record.release()
+            }
+        }
     }
 
     fun stop() {
-        started = false
-        runCatching {
-            speechService?.stop()
-            speechService?.shutdown()
-        }
-        speechService = null
+        running = false
+        captureThread?.join(STOP_TIMEOUT_MS)
+        captureThread = null
+        recorder = null
         model?.close()
         model = null
-}
-
-    override fun onPartialResult(hypothesis: String?) {
-        val text = fieldOf(hypothesis, "partial")
-        if (text.isNotBlank()) onPartial(text)
     }
 
-    override fun onResult(hypothesis: String?) {
-        val text = fieldOf(hypothesis, "text")
-        if (text.isNotBlank()) {
-            Log.d(TAG, "final: $text")
-            onFinal(text)
-        }
+    private fun emit(text: String, callback: (String) -> Unit) {
+        if (text.isNotBlank()) mainHandler.post { callback(text) }
     }
-
-    override fun onFinalResult(hypothesis: String?) {
-        // The tail flushed when listening stops; append anything not already emitted.
-        val text = fieldOf(hypothesis, "text")
-        if (text.isNotBlank()) onFinal(text)
-    }
-
-    override fun onError(exception: Exception?) {
-        Log.w(TAG, "vosk error", exception)
-    }
-
-    override fun onTimeout() {}
 
     private fun fieldOf(json: String?, key: String): String =
         runCatching { JSONObject(json ?: "{}").optString(key) }.getOrDefault("")
@@ -99,6 +127,12 @@ class SpeechController(
     private companion object {
         const val TAG = "PeerPitchSpeech"
         const val MODEL_ASSET = "model-en-us"
-        const val SAMPLE_RATE = 16000.0f
+        const val SAMPLE_RATE = 16000
+        const val CHANNEL = AudioFormat.CHANNEL_IN_MONO
+        const val ENCODING = AudioFormat.ENCODING_PCM_16BIT
+        // MIC = the primary built-in mic, independent of the camera audio path. Vosk's own
+        // SpeechService uses VOICE_RECOGNITION, which the camera silences on the emulator.
+        const val AUDIO_SOURCE = MediaRecorder.AudioSource.MIC
+        const val STOP_TIMEOUT_MS = 1000L
     }
 }

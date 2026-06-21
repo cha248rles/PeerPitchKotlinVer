@@ -29,17 +29,23 @@ import com.example.peerpitchkotlinver.vision.FaceLandmarkerHelper
 @Composable
 fun CameraPreview(
     onEyeContact: (EyeContact) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    runFaceDetection: Boolean = true
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val latestOnEyeContact = rememberUpdatedState(onEyeContact)
 
-    val faceHelper = remember {
-        FaceLandmarkerHelper(context) { state -> latestOnEyeContact.value(state) }
+    // TEMP DEBUG: when runFaceDetection is false, the preview still streams but MediaPipe is
+    // never created or fed a frame — isolates whether the Face Landmarker (not CameraX itself)
+    // is what silences the Vosk mic on the emulator.
+    val faceHelper = remember(runFaceDetection) {
+        if (runFaceDetection) {
+            FaceLandmarkerHelper(context) { state -> latestOnEyeContact.value(state) }
+        } else null
     }
-    DisposableEffect(Unit) {
-        onDispose { faceHelper.close() }
+    DisposableEffect(faceHelper) {
+        onDispose { faceHelper?.close() }
     }
 
     AndroidView(
@@ -61,7 +67,7 @@ fun CameraPreview(
                 var lastDetectMs = 0L
                 analysis.setAnalyzer(ContextCompat.getMainExecutor(ctx)) { proxy ->
                     val now = SystemClock.uptimeMillis()
-                    if (now - lastDetectMs >= DETECT_INTERVAL_MS) {
+                    if (faceHelper != null && now - lastDetectMs >= DETECT_INTERVAL_MS) {
                         lastDetectMs = now
                         runCatching { faceHelper.detect(proxy.toUprightBitmap(), now) }
                     }

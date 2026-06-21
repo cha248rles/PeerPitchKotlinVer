@@ -63,10 +63,11 @@ private val REQUIRED_PERMISSIONS = arrayOf(Manifest.permission.CAMERA, Manifest.
 private const val SNAPSHOT_INTERVAL_MS = 10_000L
 
 /**
- * TEMP DEBUG: when true, the camera is not started, so SpeechRecognizer runs alone. Used to
- * test whether CameraX + speech recognition contend for the emulator mic. Set back to false.
+ * TEMP DEBUG: when false, the camera preview streams but the MediaPipe Face Landmarker never
+ * runs — isolates whether MediaPipe (not CameraX) is what silences the Vosk mic. Set true once
+ * the camera+mic interaction is confirmed.
  */
-private const val DISABLE_CAMERA_FOR_SPEECH_TEST = true
+private const val RUN_FACE_DETECTION = true
 
 @Composable
 fun ActiveVideoFeedScreen(onEnd: (PitchResult) -> Unit = {}, onHome: () -> Unit = {}) {
@@ -181,12 +182,15 @@ fun ActiveVideoFeedScreen(onEnd: (PitchResult) -> Unit = {}, onHome: () -> Unit 
                 .background(PitchFeedDark)
         ) {
             if (granted) {
-                if (!DISABLE_CAMERA_FOR_SPEECH_TEST) {
-                    CameraPreview(
-                        onEyeContact = { session.eyeContact = it },
-                        modifier = Modifier.fillMaxSize()
-                    )
-                }
+                // Camera (eye-contact tracking) and Vosk (mic) run together. CameraX here binds
+                // only Preview + ImageAnalysis — no VideoCapture — so it never opens an audio
+                // source; Vosk owns the mic alone. Any past "silent mic while camera on" was an
+                // emulator host-audio routing quirk, not contention in app code.
+                CameraPreview(
+                    onEyeContact = { session.eyeContact = it },
+                    modifier = Modifier.fillMaxSize(),
+                    runFaceDetection = RUN_FACE_DETECTION
+                )
                 MetricsOverlay(session)
                 if (analyzing) AnalyzingOverlay()
             } else {
