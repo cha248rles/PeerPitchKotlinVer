@@ -1,3 +1,8 @@
+/*
+ * What: Defines the Material 3 Typography set used by the app's theme.
+ * Who:  Charles O'Connell and Anish Machiraju
+ * When: 2026-06-21
+ */
 package com.example.peerpitchkotlinver.ui.theme
 
 import androidx.compose.material3.Typography
@@ -6,6 +11,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 
+/** Material 3 typography styles applied throughout the app via the theme. */
 // Set of Material typography styles to start with
 val Typography = Typography(
     bodyLarge = TextStyle(

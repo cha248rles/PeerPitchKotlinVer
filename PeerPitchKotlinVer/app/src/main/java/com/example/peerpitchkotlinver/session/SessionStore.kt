@@ -1,3 +1,9 @@
+/*
+ * What: Persists the current session's metrics snapshot to a single JSON file in the app's
+ *       internal storage, refreshing it each session and reading the latest back off disk.
+ * Who:  Charles O'Connell and Anish Machiraju
+ * When: 2026-06-21
+ */
 package com.example.peerpitchkotlinver.session
 
 import android.content.Context

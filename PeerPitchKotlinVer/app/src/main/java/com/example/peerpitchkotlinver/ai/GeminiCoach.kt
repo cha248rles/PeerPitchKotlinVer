@@ -1,3 +1,9 @@
+/*
+ * What: Generates end-of-session pitch coaching feedback by sending session metrics and the
+ *       transcript to Gemini, and parses the scored JSON response (CoachFeedback).
+ * Who:  Charles O'Connell and Anish Machiraju
+ * When: 2026-06-21
+ */
 package com.example.peerpitchkotlinver.ai
 
 import android.content.Context

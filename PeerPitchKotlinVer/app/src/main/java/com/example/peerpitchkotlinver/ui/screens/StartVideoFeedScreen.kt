@@ -1,3 +1,8 @@
+/*
+ * What: Pre-recording screen — prompts the user to start recording their pitch video feed.
+ * Who:  Charles O'Connell and Anish Machiraju
+ * When: 2026-06-21
+ */
 package com.example.peerpitchkotlinver.ui.screens
 
 import androidx.compose.foundation.background
@@ -22,6 +27,10 @@ import com.example.peerpitchkotlinver.ui.components.PeerPitchLogo
 import com.example.peerpitchkotlinver.ui.theme.PitchBlue
 import com.example.peerpitchkotlinver.ui.theme.PitchGold
 
+/**
+ * Renders the start-recording screen: a gold-backed column with a "Start Video Feed" heading,
+ * a faded PeerPitch logo, and a transparent pill button that begins recording.
+ */
 @Composable
 fun StartVideoFeedScreen(onStartRecording: () -> Unit) {
     Column(
@@ -47,6 +56,7 @@ fun StartVideoFeedScreen(onStartRecording: () -> Unit) {
     }
 }
 
+/** Design-time preview of the start-recording screen with a no-op start callback. */
 @Preview(showBackground = true)
 @Composable
 fun StartVideoFeedScreenPreview() {

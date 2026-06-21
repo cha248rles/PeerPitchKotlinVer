@@ -1,3 +1,9 @@
+/*
+ * What: Wraps MediaPipe Face Landmarker in live-stream mode to derive a coarse eye-contact
+ *       state (NONE/GOOD/POOR) from head turn and gaze, smoothed and delivered via callback.
+ * Who:  Charles O'Connell and Anish Machiraju
+ * When: 2026-06-21
+ */
 package com.example.peerpitchkotlinver.vision
 
 import android.content.Context
@@ -59,6 +65,7 @@ class FaceLandmarkerHelper(
         faceLandmarker?.detectAsync(mpImage, timestampMs)
     }
 
+    /** Release the underlying Face Landmarker; call when the camera/vision pipeline shuts down. */
     fun close() {
         faceLandmarker?.close()
         faceLandmarker = null

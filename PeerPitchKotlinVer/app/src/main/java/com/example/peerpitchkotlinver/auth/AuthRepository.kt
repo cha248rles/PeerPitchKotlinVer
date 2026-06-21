@@ -1,3 +1,9 @@
+/*
+ * What: Thin wrapper around Firebase email/password Authentication, exposing sign-in,
+ *       sign-up, sign-out and the current user's signed-in state.
+ * Who:  Charles O'Connell and Anish Machiraju
+ * When: 2026-06-21
+ */
 package com.example.peerpitchkotlinver.auth
 
 import com.google.firebase.auth.FirebaseAuth
@@ -19,6 +25,7 @@ object AuthRepository {
     /** True if a user is already signed in (useful to skip the login screen). */
     val isSignedIn: Boolean get() = auth.currentUser != null
 
+    /** Sign in an existing user with email/password; reports success or failure via [onResult]. */
     fun signIn(email: String, password: String, onResult: (Result<Unit>) -> Unit) {
         auth.signInWithEmailAndPassword(email.trim(), password)
             .addOnCompleteListener { task ->
@@ -30,6 +37,7 @@ object AuthRepository {
             }
     }
 
+    /** Create a new account with email/password; reports success or failure via [onResult]. */
     fun signUp(email: String, password: String, onResult: (Result<Unit>) -> Unit) {
         auth.createUserWithEmailAndPassword(email.trim(), password)
             .addOnCompleteListener { task ->
@@ -41,5 +49,6 @@ object AuthRepository {
             }
     }
 
+    /** Sign the current user out. */
     fun signOut() = auth.signOut()
 }

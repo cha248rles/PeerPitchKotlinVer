@@ -1,3 +1,9 @@
+/*
+ * What: Continuous offline speech-to-text using Vosk; captures mic audio directly into the
+ *       recognizer and reports live partial and finalized transcript segments via callbacks.
+ * Who:  Charles O'Connell and Anish Machiraju
+ * When: 2026-06-21
+ */
 package com.example.peerpitchkotlinver.speech
 
 import android.content.Context
@@ -108,6 +114,7 @@ class SpeechController(
         }
     }
 
+    /** Stop listening, flush the final segment, and release the recorder and model. */
     fun stop() {
         running = false
         captureThread?.join(STOP_TIMEOUT_MS)

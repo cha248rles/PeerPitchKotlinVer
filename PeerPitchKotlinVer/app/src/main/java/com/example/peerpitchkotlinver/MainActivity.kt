@@ -1,3 +1,9 @@
+/*
+ * What: App entry point. Defines the navigation routes, the MainActivity that hosts the
+ *       Compose UI, and the PeerPitchApp NavHost that wires together all app screens.
+ * Who:  Charles O'Connell and Anish Machiraju
+ * When: 2026-06-21
+ */
 package com.example.peerpitchkotlinver
 
 import android.os.Bundle
@@ -9,6 +15,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
@@ -22,6 +29,7 @@ import com.example.peerpitchkotlinver.ui.screens.WelcomeScreen
 import com.example.peerpitchkotlinver.ui.screens.sampleResult
 import com.example.peerpitchkotlinver.ui.theme.PeerPitchKotlinVerTheme
 
+/** Central definition of the navigation route names used by the [PeerPitchApp] NavHost. */
 object Routes {
     const val WELCOME = "welcome"
     const val SIGN_UP = "signup"
@@ -31,6 +39,10 @@ object Routes {
     const val RESULTS = "results"
 }
 
+/**
+ * Single-activity entry point for the app. Enables edge-to-edge rendering and sets the
+ * Compose content to the themed [PeerPitchApp] root composable.
+ */
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -43,6 +55,11 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+/**
+ * Root composable hosting the app's navigation graph. Sets up the NavHost, holds the latest
+ * pitch result in state, and defines navigation between Welcome, Sign Up, Login, Start Feed,
+ * Active Feed, and Results screens.
+ */
 @Composable
 fun PeerPitchApp() {
     val navController = rememberNavController()
@@ -93,4 +110,11 @@ fun PeerPitchApp() {
             )
         }
     }
+}
+
+/** IDE design-time preview of the app's navigation root, [PeerPitchApp]. */
+@Preview
+@Composable
+private fun PeerPitchAppPreview() {
+    PeerPitchApp()
 }

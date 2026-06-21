@@ -1,3 +1,10 @@
+/*
+ * What: Reusable Jetpack Compose UI building blocks for the PeerPitch app — the
+ *       branded logo, hand-drawn Canvas icons, styled text fields and buttons,
+ *       the top app bar, and the score/metric/section cards used on the results screens.
+ * Who:  Charles O'Connell and Anish Machiraju
+ * When: 2026-06-21
+ */
 package com.example.peerpitchkotlinver.ui.components
 
 import androidx.compose.foundation.BorderStroke
@@ -42,12 +49,15 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.peerpitchkotlinver.ui.theme.PeerPitchKotlinVerTheme
 import com.example.peerpitchkotlinver.ui.theme.PitchBlack
 import com.example.peerpitchkotlinver.ui.theme.PitchBlue
 import com.example.peerpitchkotlinver.ui.theme.PitchGold
 
+/** Renders the stacked "Peer / Pitch" brand wordmark with the projector-board icon. */
 @Composable
 fun PeerPitchLogo(modifier: Modifier = Modifier) {
     Column(modifier = modifier, horizontalAlignment = Alignment.CenterHorizontally) {
@@ -72,6 +82,7 @@ fun PeerPitchLogo(modifier: Modifier = Modifier) {
     }
 }
 
+/** Draws a small hand-drawn projector-screen/easel glyph on a Canvas, tinted with [tint]. */
 @Composable
 fun ProjectorBoardIcon(modifier: Modifier = Modifier, tint: Color = Color.White) {
     Canvas(modifier = modifier) {
@@ -93,6 +104,7 @@ fun ProjectorBoardIcon(modifier: Modifier = Modifier, tint: Color = Color.White)
     }
 }
 
+/** Renders a decorative Canvas illustration of a presentation: whiteboard with charts and an audience. */
 @Composable
 fun PresentationIllustration(modifier: Modifier = Modifier) {
     Box(
@@ -128,6 +140,10 @@ fun PresentationIllustration(modifier: Modifier = Modifier) {
     }
 }
 
+/**
+ * Rounded white text field styled for PeerPitch forms. Shows [placeholder] when empty and,
+ * when [isPassword] is true, masks the entry and adds an [EyeIcon] to toggle visibility.
+ */
 @Composable
 fun PitchTextField(
     value: String,
@@ -202,6 +218,7 @@ fun EyeIcon(
     }
 }
 
+/** Pill-shaped outlined button with a blue border showing [text] and invoking [onClick] when tapped. */
 @Composable
 fun OutlinedPillButton(
     text: String,
@@ -225,6 +242,7 @@ fun OutlinedPillButton(
     }
 }
 
+/** Solid black pill button labeled "Next"; [enabled] controls tappability and [onClick] fires on tap. */
 @Composable
 fun NextButton(onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true) {
     Button(
@@ -242,6 +260,7 @@ fun NextButton(onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Bool
     }
 }
 
+/** Tappable hand-drawn left-pointing back arrow icon that invokes [onClick] when pressed. */
 @Composable
 fun BackArrowIcon(onClick: () -> Unit, modifier: Modifier = Modifier, tint: Color = Color.White) {
     Canvas(
@@ -279,6 +298,7 @@ fun HouseGlyph(modifier: Modifier = Modifier, tint: Color = Color.White) {
     }
 }
 
+/** Tappable house glyph used as a "home" navigation icon; invokes [onClick] when pressed. */
 @Composable
 fun HomeIcon(onClick: () -> Unit, modifier: Modifier = Modifier, tint: Color = Color.White) {
     HouseGlyph(
@@ -314,6 +334,7 @@ fun OutlinedHomeButton(
     }
 }
 
+/** Tappable three-line hamburger menu icon drawn on a Canvas; invokes [onClick] when pressed. */
 @Composable
 fun MenuIcon(modifier: Modifier = Modifier, tint: Color = Color.White, onClick: () -> Unit = {}) {
     Canvas(
@@ -331,6 +352,10 @@ fun MenuIcon(modifier: Modifier = Modifier, tint: Color = Color.White, onClick: 
     }
 }
 
+/**
+ * App top bar with a centered [title], a leading back/home control (a [HomeIcon] when
+ * [useHomeIcon] is true, otherwise a [BackArrowIcon] that calls [onBack]), and a trailing menu icon.
+ */
 @Composable
 fun PitchTopBar(
     title: String,
@@ -360,6 +385,7 @@ fun PitchTopBar(
     }
 }
 
+/** Inline row pairing plain [prefix] text with an underlined, tappable [link] that calls [onLinkClick]. */
 @Composable
 fun LoginLinkRow(prefix: String, link: String, onLinkClick: () -> Unit, modifier: Modifier = Modifier) {
     Row(modifier = modifier) {
@@ -473,5 +499,178 @@ fun BulletLine(text: String, modifier: Modifier = Modifier) {
     Row(modifier = modifier.fillMaxWidth().padding(vertical = 3.dp)) {
         Text("•  ", color = PitchGold, fontSize = 14.sp, fontWeight = FontWeight.Bold)
         Text(text, color = Color(0xFF333333), fontSize = 13.sp)
+    }
+}
+
+// ---------------------------------------------------------------------------
+// @Preview functions — one per composable above, for Android Studio previews.
+// ---------------------------------------------------------------------------
+
+/** Preview of [PeerPitchLogo]. */
+@Preview
+@Composable
+private fun PeerPitchLogoPreview() {
+    PeerPitchKotlinVerTheme {
+        PeerPitchLogo()
+    }
+}
+
+/** Preview of [ProjectorBoardIcon]. */
+@Preview
+@Composable
+private fun ProjectorBoardIconPreview() {
+    PeerPitchKotlinVerTheme {
+        ProjectorBoardIcon(modifier = Modifier.size(48.dp), tint = PitchBlue)
+    }
+}
+
+/** Preview of [PresentationIllustration]. */
+@Preview
+@Composable
+private fun PresentationIllustrationPreview() {
+    PeerPitchKotlinVerTheme {
+        PresentationIllustration(modifier = Modifier.size(240.dp))
+    }
+}
+
+/** Preview of [PitchTextField]. */
+@Preview
+@Composable
+private fun PitchTextFieldPreview() {
+    PeerPitchKotlinVerTheme {
+        PitchTextField(
+            value = "Sample",
+            onValueChange = {},
+            placeholder = "Email"
+        )
+    }
+}
+
+/** Preview of [EyeIcon]. */
+@Preview
+@Composable
+private fun EyeIconPreview() {
+    PeerPitchKotlinVerTheme {
+        EyeIcon(visible = true, onClick = {}, tint = PitchBlue)
+    }
+}
+
+/** Preview of [OutlinedPillButton]. */
+@Preview
+@Composable
+private fun OutlinedPillButtonPreview() {
+    PeerPitchKotlinVerTheme {
+        OutlinedPillButton(text = "Sample", onClick = {})
+    }
+}
+
+/** Preview of [NextButton]. */
+@Preview
+@Composable
+private fun NextButtonPreview() {
+    PeerPitchKotlinVerTheme {
+        NextButton(onClick = {})
+    }
+}
+
+/** Preview of [BackArrowIcon]. */
+@Preview
+@Composable
+private fun BackArrowIconPreview() {
+    PeerPitchKotlinVerTheme {
+        BackArrowIcon(onClick = {}, tint = PitchBlue)
+    }
+}
+
+/** Preview of [HouseGlyph]. */
+@Preview
+@Composable
+private fun HouseGlyphPreview() {
+    PeerPitchKotlinVerTheme {
+        HouseGlyph(modifier = Modifier.size(48.dp), tint = PitchBlue)
+    }
+}
+
+/** Preview of [HomeIcon]. */
+@Preview
+@Composable
+private fun HomeIconPreview() {
+    PeerPitchKotlinVerTheme {
+        HomeIcon(onClick = {}, tint = PitchBlue)
+    }
+}
+
+/** Preview of [OutlinedHomeButton]. */
+@Preview
+@Composable
+private fun OutlinedHomeButtonPreview() {
+    PeerPitchKotlinVerTheme {
+        OutlinedHomeButton(onClick = {})
+    }
+}
+
+/** Preview of [MenuIcon]. */
+@Preview
+@Composable
+private fun MenuIconPreview() {
+    PeerPitchKotlinVerTheme {
+        MenuIcon(modifier = Modifier.size(48.dp), tint = PitchBlue, onClick = {})
+    }
+}
+
+/** Preview of [PitchTopBar]. */
+@Preview
+@Composable
+private fun PitchTopBarPreview() {
+    PeerPitchKotlinVerTheme {
+        PitchTopBar(title = "Sample Title", onBack = {})
+    }
+}
+
+/** Preview of [LoginLinkRow]. */
+@Preview
+@Composable
+private fun LoginLinkRowPreview() {
+    PeerPitchKotlinVerTheme {
+        LoginLinkRow(prefix = "No account? ", link = "Sign up", onLinkClick = {})
+    }
+}
+
+/** Preview of [ScoreBadge]. */
+@Preview
+@Composable
+private fun ScoreBadgePreview() {
+    PeerPitchKotlinVerTheme {
+        ScoreBadge(score = 87)
+    }
+}
+
+/** Preview of [MetricCard]. */
+@Preview
+@Composable
+private fun MetricCardPreview() {
+    PeerPitchKotlinVerTheme {
+        MetricCard(title = "Pace", value = "120 wpm", detail = "Just right")
+    }
+}
+
+/** Preview of [SectionCard]. */
+@Preview
+@Composable
+private fun SectionCardPreview() {
+    PeerPitchKotlinVerTheme {
+        SectionCard(title = "Suggestions") {
+            BulletLine(text = "Slow down on the intro")
+            BulletLine(text = "Add a clear call to action")
+        }
+    }
+}
+
+/** Preview of [BulletLine]. */
+@Preview
+@Composable
+private fun BulletLinePreview() {
+    PeerPitchKotlinVerTheme {
+        BulletLine(text = "Sample suggestion line")
     }
 }

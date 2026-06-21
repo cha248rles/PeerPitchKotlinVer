@@ -1,3 +1,8 @@
+/*
+ * What: Login screen for returning users — collects email/password and signs in via AuthRepository.
+ * Who:  Charles O'Connell and Anish Machiraju
+ * When: 2026-06-21
+ */
 package com.example.peerpitchkotlinver.ui.screens
 
 import androidx.compose.foundation.background
@@ -30,6 +35,11 @@ import com.example.peerpitchkotlinver.ui.components.PitchTopBar
 import com.example.peerpitchkotlinver.ui.components.PresentationIllustration
 import com.example.peerpitchkotlinver.ui.theme.PitchGold
 
+/**
+ * Renders the returning-user login screen: a gold-backed form with the PeerPitch logo,
+ * presentation illustration, email/password fields, inline error text, and a Next button
+ * that triggers sign-in.
+ */
 @Composable
 fun LoginScreen(
     onBack: () -> Unit,
@@ -110,6 +120,7 @@ fun LoginScreen(
     }
 }
 
+/** Design-time preview of the login screen with no-op navigation callbacks. */
 @Preview(showBackground = true)
 @Composable
 fun LoginScreenPreview() {

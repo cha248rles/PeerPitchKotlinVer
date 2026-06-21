@@ -1,3 +1,8 @@
+/*
+ * What: Welcome/landing screen — the app's first screen, showing branding and a "Get Started" call to action.
+ * Who:  Charles O'Connell and Anish Machiraju
+ * When: 2026-06-21
+ */
 package com.example.peerpitchkotlinver.ui.screens
 
 import androidx.compose.foundation.background
@@ -23,6 +28,10 @@ import com.example.peerpitchkotlinver.ui.components.PeerPitchLogo
 import com.example.peerpitchkotlinver.ui.components.PresentationIllustration
 import com.example.peerpitchkotlinver.ui.theme.PitchGold
 
+/**
+ * Renders the welcome landing screen: a gold-backed column with a "Welcome" heading, the
+ * PeerPitch logo, a presentation illustration, and a "Get Started" pill button.
+ */
 @Composable
 fun WelcomeScreen(onGetStarted: () -> Unit) {
     Column(
@@ -50,6 +59,7 @@ fun WelcomeScreen(onGetStarted: () -> Unit) {
     }
 }
 
+/** Design-time preview of the welcome screen with a no-op get-started callback. */
 @Preview(showBackground = true)
 @Composable
 fun WelcomeScreenPreview() {

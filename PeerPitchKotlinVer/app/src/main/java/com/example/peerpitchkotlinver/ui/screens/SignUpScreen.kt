@@ -1,3 +1,8 @@
+/*
+ * What: Sign-up screen for new users — collects email/password, validates them, and creates an account via AuthRepository.
+ * Who:  Charles O'Connell and Anish Machiraju
+ * When: 2026-06-21
+ */
 package com.example.peerpitchkotlinver.ui.screens
 
 import androidx.compose.foundation.background
@@ -31,6 +36,11 @@ import com.example.peerpitchkotlinver.ui.components.PitchTopBar
 import com.example.peerpitchkotlinver.ui.components.PresentationIllustration
 import com.example.peerpitchkotlinver.ui.theme.PitchGold
 
+/**
+ * Renders the new-user sign-up screen: a gold-backed form with the PeerPitch logo,
+ * presentation illustration, email/password fields, inline validation/error text, a link
+ * to switch to login, and a Next button that creates the account.
+ */
 @Composable
 fun SignUpScreen(
     onBack: () -> Unit,
@@ -122,6 +132,7 @@ fun SignUpScreen(
     }
 }
 
+/** Design-time preview of the sign-up screen with no-op navigation callbacks. */
 @Preview(showBackground = true)
 @Composable
 fun SignUpScreenPreview() {

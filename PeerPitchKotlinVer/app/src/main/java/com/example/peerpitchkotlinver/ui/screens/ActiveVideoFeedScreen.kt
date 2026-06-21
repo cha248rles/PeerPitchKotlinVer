@@ -1,3 +1,9 @@
+/*
+ * What: Active recording screen — runs the live camera feed with eye-contact tracking and speech
+ *       transcription, overlays live metrics, and assembles the pitch summary when the user ends.
+ * Who:  Charles O'Connell and Anish Machiraju
+ * When: 2026-06-21
+ */
 package com.example.peerpitchkotlinver.ui.screens
 
 import android.Manifest
@@ -51,6 +57,7 @@ import com.example.peerpitchkotlinver.session.SessionStore
 import com.example.peerpitchkotlinver.speech.SpeechController
 import com.example.peerpitchkotlinver.ui.components.OutlinedHomeButton
 import com.example.peerpitchkotlinver.ui.components.OutlinedPillButton
+import com.example.peerpitchkotlinver.ui.theme.PeerPitchKotlinVerTheme
 import com.example.peerpitchkotlinver.ui.theme.PitchFeedDark
 import com.example.peerpitchkotlinver.ui.theme.PitchGold
 import com.example.peerpitchkotlinver.vision.EyeContact
@@ -63,12 +70,10 @@ private val REQUIRED_PERMISSIONS = arrayOf(Manifest.permission.CAMERA, Manifest.
 private const val SNAPSHOT_INTERVAL_MS = 10_000L
 
 /**
- * TEMP DEBUG: when false, the camera preview streams but the MediaPipe Face Landmarker never
- * runs — isolates whether MediaPipe (not CameraX) is what silences the Vosk mic. Set true once
- * the camera+mic interaction is confirmed.
+ * Renders the live pitch-recording screen: requests camera/mic permissions, shows the CameraX
+ * preview with eye-contact tracking and live speech transcription, overlays running metrics, and
+ * on "End" gathers the metrics + Gemini summary into a PitchResult before navigating to Results.
  */
-private const val RUN_FACE_DETECTION = true
-
 @Composable
 fun ActiveVideoFeedScreen(onEnd: (PitchResult) -> Unit = {}, onHome: () -> Unit = {}) {
     val context = LocalContext.current
@@ -93,8 +98,8 @@ fun ActiveVideoFeedScreen(onEnd: (PitchResult) -> Unit = {}, onHome: () -> Unit 
         if (!granted) permissionLauncher.launch(REQUIRED_PERMISSIONS)
     }
 
-    // Live transcription via Android's built-in SpeechRecognizer — the same online Google
-    // service that powers Gboard voice typing (which works on the emulator). Partial results
+    // Live transcription via Vosk — an offline, on-device recognizer that captures the mic
+    // itself and streams continuously (no server, no time limit, no quota). Partial results
     // feed the live transcript; finalized segments commit into the session metrics.
     DisposableEffect(granted) {
         if (!granted) return@DisposableEffect onDispose { }
@@ -188,8 +193,7 @@ fun ActiveVideoFeedScreen(onEnd: (PitchResult) -> Unit = {}, onHome: () -> Unit 
                 // emulator host-audio routing quirk, not contention in app code.
                 CameraPreview(
                     onEyeContact = { session.eyeContact = it },
-                    modifier = Modifier.fillMaxSize(),
-                    runFaceDetection = RUN_FACE_DETECTION
+                    modifier = Modifier.fillMaxSize()
                 )
                 MetricsOverlay(session)
                 if (analyzing) AnalyzingOverlay()
@@ -209,6 +213,11 @@ fun ActiveVideoFeedScreen(onEnd: (PitchResult) -> Unit = {}, onHome: () -> Unit 
     }
 }
 
+/**
+ * Overlays live session metrics on top of the camera feed: an eye-contact status indicator
+ * (colored dot + label) and filler-word/pace counts at the top-left, and the running live
+ * transcription centered at the bottom.
+ */
 @Composable
 private fun BoxScope.MetricsOverlay(session: SessionState) {
     val eyeLabel = when (session.eyeContact) {
@@ -289,6 +298,10 @@ private fun formatDuration(ms: Long): String {
     return "${totalSeconds / 60}:${(totalSeconds % 60).toString().padStart(2, '0')}"
 }
 
+/**
+ * Centered overlay shown when camera/microphone permissions are missing: an explanatory
+ * message and a "Grant Access" button that re-requests the permissions.
+ */
 @Composable
 private fun BoxScope.PermissionPrompt(onGrant: () -> Unit) {
     Column(
@@ -313,8 +326,42 @@ private fun BoxScope.PermissionPrompt(onGrant: () -> Unit) {
     }
 }
 
+/** Design-time preview of the full active video feed screen with no-op callbacks. */
 @Preview(showBackground = true)
 @Composable
 fun ActiveVideoFeedScreenPreview() {
     ActiveVideoFeedScreen()
+}
+
+/** Design-time preview of the live metrics overlay using a fresh, empty session. */
+@Preview(showBackground = true)
+@Composable
+private fun MetricsOverlayPreview() {
+    PeerPitchKotlinVerTheme {
+        Box {
+            MetricsOverlay(SessionState())
+        }
+    }
+}
+
+/** Design-time preview of the "analyzing" overlay shown while the summary is generated. */
+@Preview(showBackground = true)
+@Composable
+private fun AnalyzingOverlayPreview() {
+    PeerPitchKotlinVerTheme {
+        Box {
+            AnalyzingOverlay()
+        }
+    }
+}
+
+/** Design-time preview of the permission prompt overlay with a no-op grant callback. */
+@Preview(showBackground = true)
+@Composable
+private fun PermissionPromptPreview() {
+    PeerPitchKotlinVerTheme {
+        Box {
+            PermissionPrompt(onGrant = {})
+        }
+    }
 }

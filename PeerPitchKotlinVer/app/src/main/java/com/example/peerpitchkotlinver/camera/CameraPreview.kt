@@ -1,3 +1,10 @@
+/*
+ * What: A Compose composable that displays the live front-camera feed via CameraX and runs
+ *       throttled frames through MediaPipe to report eye-contact state. Includes a bitmap
+ *       rotation helper for analysis frames.
+ * Who:  Charles O'Connell and Anish Machiraju
+ * When: 2026-06-21
+ */
 package com.example.peerpitchkotlinver.camera
 
 import android.graphics.Bitmap
@@ -29,23 +36,17 @@ import com.example.peerpitchkotlinver.vision.FaceLandmarkerHelper
 @Composable
 fun CameraPreview(
     onEyeContact: (EyeContact) -> Unit,
-    modifier: Modifier = Modifier,
-    runFaceDetection: Boolean = true
+    modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val latestOnEyeContact = rememberUpdatedState(onEyeContact)
 
-    // TEMP DEBUG: when runFaceDetection is false, the preview still streams but MediaPipe is
-    // never created or fed a frame — isolates whether the Face Landmarker (not CameraX itself)
-    // is what silences the Vosk mic on the emulator.
-    val faceHelper = remember(runFaceDetection) {
-        if (runFaceDetection) {
-            FaceLandmarkerHelper(context) { state -> latestOnEyeContact.value(state) }
-        } else null
+    val faceHelper = remember {
+        FaceLandmarkerHelper(context) { state -> latestOnEyeContact.value(state) }
     }
-    DisposableEffect(faceHelper) {
-        onDispose { faceHelper?.close() }
+    DisposableEffect(Unit) {
+        onDispose { faceHelper.close() }
     }
 
     AndroidView(
@@ -67,7 +68,7 @@ fun CameraPreview(
                 var lastDetectMs = 0L
                 analysis.setAnalyzer(ContextCompat.getMainExecutor(ctx)) { proxy ->
                     val now = SystemClock.uptimeMillis()
-                    if (faceHelper != null && now - lastDetectMs >= DETECT_INTERVAL_MS) {
+                    if (now - lastDetectMs >= DETECT_INTERVAL_MS) {
                         lastDetectMs = now
                         runCatching { faceHelper.detect(proxy.toUprightBitmap(), now) }
                     }
@@ -91,6 +92,13 @@ fun CameraPreview(
             previewView
         }
     )
+}
+
+/** IDE design-time preview of [CameraPreview]; the live camera feed does not render in the IDE. */
+@androidx.compose.ui.tooling.preview.Preview
+@Composable
+private fun CameraPreviewPreview() {
+    CameraPreview(onEyeContact = {})
 }
 
 private const val DETECT_INTERVAL_MS = 100L

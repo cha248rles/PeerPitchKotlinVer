@@ -1,3 +1,9 @@
+/*
+ * What: Defines the color palette used by the app's theme, including the Material default
+ *       purple/pink swatches and the custom PeerPitch brand colors.
+ * Who:  Charles O'Connell and Anish Machiraju
+ * When: 2026-06-21
+ */
 package com.example.peerpitchkotlinver.ui.theme
 
 import androidx.compose.ui.graphics.Color

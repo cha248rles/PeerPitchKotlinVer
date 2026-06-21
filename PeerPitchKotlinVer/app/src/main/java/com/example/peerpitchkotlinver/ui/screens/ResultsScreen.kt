@@ -1,3 +1,8 @@
+/*
+ * What: Results screen — displays a completed pitch's score, metrics, transcription, and suggestions.
+ * Who:  Charles O'Connell and Anish Machiraju
+ * When: 2026-06-21
+ */
 package com.example.peerpitchkotlinver.ui.screens
 
 import androidx.compose.foundation.layout.Arrangement
@@ -57,6 +62,11 @@ val sampleResult = PitchResult(
     )
 )
 
+/**
+ * Renders the pitch results screen: a scrollable, gold-backed layout with a score badge,
+ * a row of metric cards (eye contact, filler words, duration), a transcription section,
+ * a suggestions section, and a Done button.
+ */
 @Composable
 fun ResultsScreen(
     result: PitchResult = sampleResult,
@@ -119,6 +129,7 @@ fun ResultsScreen(
     }
 }
 
+/** Design-time preview of the results screen using the built-in sample result. */
 @Preview(showBackground = true)
 @Composable
 fun ResultsScreenPreview() {

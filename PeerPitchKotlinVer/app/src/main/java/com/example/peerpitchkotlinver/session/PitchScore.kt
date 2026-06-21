@@ -1,3 +1,9 @@
+/*
+ * What: Deterministically computes the 0..100 pitch grade from session metrics, combining
+ *       eye-tracking, Gemini-judged speech quality, and filler-word sections.
+ * Who:  Charles O'Connell and Anish Machiraju
+ * When: 2026-06-21
+ */
 package com.example.peerpitchkotlinver.session
 
 import com.example.peerpitchkotlinver.session.SessionState.TimedSample

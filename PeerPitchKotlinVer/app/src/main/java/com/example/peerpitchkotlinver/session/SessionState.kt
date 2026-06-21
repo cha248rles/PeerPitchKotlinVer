@@ -1,3 +1,9 @@
+/*
+ * What: Holds the live metrics for one practice session as Compose state (eye contact,
+ *       transcript, filler count, rolling words-per-minute) and exposes timed samples.
+ * Who:  Charles O'Connell and Anish Machiraju
+ * When: 2026-06-21
+ */
 package com.example.peerpitchkotlinver.session
 
 import android.os.SystemClock
@@ -51,11 +57,13 @@ class SessionState(private val store: SessionStore? = null) {
 
     private val samples = mutableListOf<TimedSample>()
 
+    /** One timestamped reading: seconds into the session, eye-contact state, and words-per-minute. */
     data class TimedSample(val tSec: Int, val eyeContact: EyeContact, val wpm: Int)
 
     private var startMs = 0L
     private val bursts = ArrayDeque<WordBurst>()
 
+    /** Reset all metrics and start the session clock; clears any persisted store. */
     fun begin() {
         startMs = SystemClock.elapsedRealtime()
         eyeContactState = EyeContact.NONE
@@ -67,11 +75,13 @@ class SessionState(private val store: SessionStore? = null) {
         store?.reset()
         samples.clear()
     }
+    /** Refresh metrics and append a timestamped sample of the current eye contact and pace. */
     fun sample() {
         recompute() // refresh wpm first
         samples.add(TimedSample((elapsedMs / 1000).toInt(), eyeContactState, wordsPerMinute))
     }
 
+    /** Immutable copy of all timed samples collected so far this session. */
     fun samplesSnapshot(): List<TimedSample> = samples.toList()
 
     /** Append a finalized speech segment and refresh derived metrics. */
@@ -91,6 +101,7 @@ class SessionState(private val store: SessionStore? = null) {
     /** Recompute time-based metrics (pace) without new speech; safe to call on a timer. */
     fun tick() = recompute()
 
+    /** Immutable [MetricsSnapshot] of the current live metrics. */
     fun snapshot(): MetricsSnapshot =
         MetricsSnapshot(eyeContactState, fillerWordCount, wordsPerMinute, transcript)
 
